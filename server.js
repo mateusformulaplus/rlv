@@ -4,13 +4,24 @@ import { fileURLToPath } from "url"
 import { dirname, join } from "path"
 import router from "./router/router.js"
 
+import  fastifyCors  from "@fastify/cors"
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
 
 // Pasta raiz do projeto (um nível acima de /backend)
 const rootDir = join(__dirname, "..")
 
 const server = fastify({ logger: false })
+
+
+server.register(fastifyCors, {
+    origin: "*", // Permite todas as origens (substitua por sua origem específica em produção)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true
+})
 
 // Serve o index.html e todos os assets estáticos (imagens, etc.)
 server.register(fastifyStatic, {
@@ -20,9 +31,17 @@ server.register(fastifyStatic, {
     decorateReply: false
 })
 
-// Garante que qualquer rota desconhecida retorne o index.html (SPA fallback)
-server.setNotFoundHandler((_request, reply) => {
-    reply.sendFile("index.html")
+// Garante que qualquer rota desconhecida retorne o index.html somente para páginas web
+// e responda em JSON para chamadas de API desconhecidas.
+server.setNotFoundHandler((request, reply) => {
+    if (request.method !== "GET" && request.method !== "HEAD") {
+        return reply.code(404).send({
+            success: false,
+            message: "Rota não encontrada"
+        })
+    }
+
+    return reply.sendFile("index.html")
 })
 
 server.register(router)

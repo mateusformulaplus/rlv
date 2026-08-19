@@ -13,10 +13,10 @@ export function buildCheckoutPayload({
 
     return {
         reference_id: referenceId || `rlv-${Date.now()}`,
-        customer: {
-            name: customer.name || "Cliente",
-            email: customer.email || "cliente@exemplo.com"
-        },
+        // customer: {
+        //     name: customer.name || "Cliente",
+        //     email: customer.email || "cliente@exemplo.com"
+        // },
         items: [
             {
                 name: productName,
@@ -26,7 +26,9 @@ export function buildCheckoutPayload({
             }
         ],
         amount: amountInCents,
-        currency: "BRL"
+        currency: "BRL",
+        // redirect_url:"https://rlvformulas.vercel.app",
+        // redirect_waiting_time:5
     }
 }
 
