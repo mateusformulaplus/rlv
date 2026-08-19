@@ -46,6 +46,14 @@ server.setNotFoundHandler((request, reply) => {
 
 server.register(router)
 
+
+server.get("/api/health", async () => {
+    return {
+        status: "ok",
+        timestamp: new Date().toISOString()
+    }
+})
+
 const port = Number(process.env.PORT || 3001)
 const host = process.env.HOST || "0.0.0.0"
 
