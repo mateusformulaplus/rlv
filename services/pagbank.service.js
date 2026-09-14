@@ -8,35 +8,68 @@ export function buildCheckoutPayload({
     referenceId,
     customer = {}
 } = {}) {
+
     const numericAmount = Number(amount || 0)
     const amountInCents = Math.round(numericAmount * 100)
 
     return {
         reference_id: referenceId || `rlv-${Date.now()}`,
+
+        // Permite que o cliente preencha os dados pessoais
         customer_modifiable: true,
-        // customer: {
-        //     name: customer.name || "Cliente",
-        //     email: customer.email || "cliente@exemplo.com"
-        // },
+
+        // Produto
         items: [
             {
                 name: productName,
                 quantity: Number(quantity || 1),
                 unit_amount: amountInCents,
-                image_url: "https://rlvformulas-arch.github.io/rlv_produtos/logo_micose_one.png"
+                image_url:
+                    "https://rlvformulas-arch.github.io/rlv_produtos/logo_micose_one.png"
             }
         ],
+
+        // FRETE CALCULADO
         shipping: {
-            type: "FREE",
-            address_modifiable: true
+            type: "CALCULATE",
+
+            // Permite que o cliente informe o endereço
+            address_modifiable: true,
+
+            // Dados da embalagem
+            box: {
+                weight: 300,
+
+                dimensions: {
+                    length: 15,
+                    width: 10,
+                    height: 8
+                }
+            }
         },
-        amount: amountInCents,
-        currency: "BRL",
-        // redirect_url:"https://rlvformulas.vercel.app",
-        // redirect_waiting_time:5
+
+        // Formas de pagamento
+        payment_methods: [
+            {
+                type: "PIX"
+            },
+            {
+                type: "CREDIT_CARD"
+            },
+            {
+                type: "BOLETO"
+            }
+        ],
+
+        // Valores
+        additional_amount: 0,
+        discount_amount: 0,
+
+        // Retorno
+        redirect_url: "https://www.rlvformulas.com.br",
+        redirect_waiting_time: 5
     }
 }
-
 
 export function extractCheckoutUrl(data = {}) {
     const links = Array.isArray(data.links) ? data.links : []
