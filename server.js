@@ -46,11 +46,9 @@ server.setNotFoundHandler((request, reply) => {
 
 server.register(router)
 
-
 server.get("/api/health", async () => {
     return {
-        status: "ok",
-        timestamp: new Date().toISOString()
+        status: "ok"
     }
 })
 
