@@ -13,6 +13,7 @@ export function buildCheckoutPayload({
 
     return {
         reference_id: referenceId || `rlv-${Date.now()}`,
+        customer_modifiable: true,
         // customer: {
         //     name: customer.name || "Cliente",
         //     email: customer.email || "cliente@exemplo.com"
