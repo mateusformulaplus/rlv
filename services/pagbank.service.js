@@ -26,6 +26,10 @@ export function buildCheckoutPayload({
                 image_url: "https://rlvformulas-arch.github.io/rlv_produtos/logo_micose_one.png"
             }
         ],
+        shipping: {
+            type: "FREE",
+            address_modifiable: true
+        },
         amount: amountInCents,
         currency: "BRL",
         // redirect_url:"https://rlvformulas.vercel.app",
