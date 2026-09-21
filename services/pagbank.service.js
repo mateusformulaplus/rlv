@@ -36,16 +36,16 @@ export function buildCheckoutPayload({
             // Permite que o cliente informe o endereço
             address_modifiable: true,
 
-            // Dados da embalagem
-            box: {
-                weight: 300,
-
-                dimensions: {
-                    length: 15,
-                    width: 10,
-                    height: 8
-                }
-            }
+        // Dados da embalagem
+       box: {
+  weight: 300,
+  dimensions: {
+    length: 15,
+    width: 10,
+    height: 2
+  }
+}
+            
         },
 
         // Formas de pagamento
