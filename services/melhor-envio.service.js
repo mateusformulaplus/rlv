@@ -44,6 +44,10 @@ export function getMelhorEnvioRedirectUri() {
     return getValue("MELHOR_ENVIO_REDIRECT_URI")
 }
 
+export function getMelhorEnvioOriginPostalCode() {
+    return getValue("MELHOR_ENVIO_ORIGIN_POSTAL_CODE")
+}
+
 function ensureClientConfiguration() {
     if (!getValue("MELHOR_ENVIO_CLIENT_ID") || !getValue("MELHOR_ENVIO_CLIENT_SECRET")) {
         throw new Error("Credenciais do Melhor Envio não configuradas")
@@ -101,9 +105,20 @@ export async function calculateMelhorEnvioShipping(shipment) {
         throw new Error("Autorize o Melhor Envio antes de calcular o frete")
     }
 
+    const shipmentWithOrigin = {
+        ...shipment,
+        from: shipment.from?.postal_code
+            ? shipment.from
+            : { postal_code: getMelhorEnvioOriginPostalCode() }
+    }
+
+    if (!shipmentWithOrigin.from.postal_code) {
+        throw new Error("CEP de origem do Melhor Envio não configurado")
+    }
+
     const response = await axios.post(
         `${getMelhorEnvioBaseUrl()}/api/v2/me/shipment/calculate`,
-        shipment,
+        shipmentWithOrigin,
         {
             headers: {
                 Accept: "application/json",

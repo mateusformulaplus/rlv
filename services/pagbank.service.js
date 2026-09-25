@@ -6,7 +6,8 @@ export function buildCheckoutPayload({
     amount = 0,
     quantity = 1,
     referenceId,
-    customer = {}
+    customer = {},
+    shippingAmount = null
 } = {}) {
 
     const numericAmount = Number(amount || 0)
@@ -29,26 +30,24 @@ export function buildCheckoutPayload({
             }
         ],
 
-        // FRETE CALCULADO
-        shipping: {
-            type: "CALCULATE",
-
-            // Permite que o cliente informe o endereço
-            address_modifiable: true,
-
-        // Dados da embalagem
-       box: {
-  weight: 300,
-  dimensions: {
-    length: 15,
-    width: 10,
-    height: 2
-  }
-}
-
-
-            
-        },
+        shipping: shippingAmount !== null
+            ? {
+                type: "FIXED",
+                amount: Math.round(Number(shippingAmount) * 100),
+                address_modifiable: true
+            }
+            : {
+                type: "CALCULATE",
+                address_modifiable: true,
+                box: {
+                    weight: 300,
+                    dimensions: {
+                        length: 15,
+                        width: 10,
+                        height: 2
+                    }
+                }
+            },
 
         // Formas de pagamento
         payment_methods: [
