@@ -122,16 +122,44 @@ export function buildTransparentOrderPayload({
     referenceId,
     shippingAmount = 0,
     customer = {},
-    notificationUrl
+    shipping = {},
+    notificationUrl,
+    paymentMethod = "PIX",
+    cardToken,
+    cardHolder,
+    installments = 1
 } = {}) {
     const totalAmount = Math.round((Number(amount || 0) + Number(shippingAmount || 0)) * 100)
+    const rawTaxId = String(customer.taxId || "").replace(/\D/g, "")
+    const phoneDigits = String(customer.phone || customer.mobile || "11999999999").replace(/\D/g, "")
+    const areaCode = phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "11"
+    const phoneNumber = phoneDigits.length >= 10 ? phoneDigits.slice(2, 11) : "999999999"
 
-    return {
+    // Card holder name must have at least two words for PagBank
+    let holderName = String(cardHolder || customer.name || "Cliente RLV").trim()
+    if (holderName.split(" ").filter(Boolean).length < 2) {
+        holderName = `${holderName} Silva`
+    }
+
+    let customerName = String(customer.name || "Cliente RLV").trim()
+    if (customerName.split(" ").filter(Boolean).length < 2) {
+        customerName = `${customerName} Silva`
+    }
+
+    const payload = {
         reference_id: referenceId || `rlv-${Date.now()}`,
         customer: {
-            name: customer.name,
+            name: customerName,
             email: customer.email,
-            tax_id: String(customer.taxId || "").replace(/\D/g, "")
+            tax_id: rawTaxId,
+            phones: [
+                {
+                    country: "55",
+                    area: areaCode,
+                    number: phoneNumber,
+                    type: "MOBILE"
+                }
+            ]
         },
         items: [
             {
@@ -141,6 +169,18 @@ export function buildTransparentOrderPayload({
                 unit_amount: Math.round(Number(amount || 0) * 100)
             }
         ],
+        shipping: shipping?.to ? {
+            address: {
+                street: shipping.to.address || "Rua",
+                number: shipping.to.number || "SN",
+                complement: shipping.to.complement || "",
+                locality: shipping.to.district || "Bairro",
+                city: shipping.to.city || "Cidade",
+                region_code: (shipping.to.state_abbr || "SP").toUpperCase(),
+                country: "BRA",
+                postal_code: String(shipping.to.postal_code || "").replace(/\D/g, "")
+            }
+        } : undefined,
         notification_urls: notificationUrl ? [notificationUrl] : undefined,
         charges: [
             {
@@ -151,16 +191,31 @@ export function buildTransparentOrderPayload({
                     currency: "BRL"
                 },
                 payment_method: {
-                    type: "PIX",
-                    installments: 1,
+                    type: paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "PIX",
+                    installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,
                     capture: true
                 }
             }
         ]
     }
+
+    if (paymentMethod === "CREDIT_CARD") {
+        if (!cardToken) {
+            throw new Error("Token criptografado do cartão não informado.")
+        }
+        payload.charges[0].payment_method.card = {
+            encrypted: cardToken,
+            store: false,
+            holder: {
+                name: holderName
+            }
+        }
+    }
+
+    return payload
 }
 
-export async function createTransparentPixOrder(requestData = {}) {
+export async function createTransparentOrder(requestData = {}) {
     if (!getPagBankToken()) {
         throw new Error("Token do PagBank não configurado")
     }
@@ -177,7 +232,8 @@ export async function createTransparentPixOrder(requestData = {}) {
         const notificationUrl = requestData.notificationUrl
             || process.env.PAGBANK_WEBHOOK_URL
             || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
-        const response = await apiPagBank.post("/orders", buildTransparentOrderPayload({ ...requestData, notificationUrl }))
+        const payload = buildTransparentOrderPayload({ ...requestData, notificationUrl })
+        const response = await apiPagBank.post("/orders", payload)
         const charge = response.data?.charges?.[0] || {}
         const qrCode = charge.payment_method?.qr_codes?.[0] || {}
 
@@ -185,7 +241,7 @@ export async function createTransparentPixOrder(requestData = {}) {
             pagbankOrderId: response.data?.id,
             pagbankChargeId: charge.id,
             referenceId: requestData.referenceId,
-            status: "awaiting_payment",
+            status: charge.status || "awaiting_payment",
             product: {
                 name: requestData.productName,
                 amount: Number(requestData.amount || 0),
@@ -199,6 +255,8 @@ export async function createTransparentPixOrder(requestData = {}) {
         return {
             orderId: response.data?.id,
             chargeId: charge.id,
+            status: charge.status,
+            paymentResponse: charge.payment_response,
             qrCodeImage: qrCode.links?.find((link) => link.media === "image/png")?.href || "",
             qrCodeText: qrCode.text || ""
         }
@@ -208,6 +266,8 @@ export async function createTransparentPixOrder(requestData = {}) {
         throw new Error(apiMessage || "Erro ao criar pedido transparente")
     }
 }
+
+export const createTransparentPixOrder = createTransparentOrder
 
 export async function getPagBankOrder(orderId) {
     const response = await apiPagBank.get(`/orders/${orderId}`)
@@ -222,7 +282,10 @@ function extractErrorMessage(responseData) {
             .map((item) => {
                 if (typeof item === "string") return item
                 if (typeof item === "object") {
-                    return item.message || item.description || item.error || JSON.stringify(item)
+                    const desc = item.description || item.message || item.error || ""
+                    const param = item.parameter_name ? ` (Parâmetro: ${item.parameter_name})` : ""
+                    const code = item.code ? `[${item.code}] ` : ""
+                    return `${code}${desc}${param}`.trim() || JSON.stringify(item)
                 }
                 return String(item)
             })

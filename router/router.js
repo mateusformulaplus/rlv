@@ -1,6 +1,6 @@
 import {
     createCheckout,
-    createTransparentPixOrder,
+    createTransparentOrder,
     getTransparentCheckoutPublicKey
 } from "../services/pagbank.service.js"
 import { handlePagBankWebhook } from "../controllers/webhook.controller.js"
@@ -18,7 +18,7 @@ export default async function checkoutRoutes(fastify) {
 
     fastify.post("/api/pagbank/order", async (request, reply) => {
         try {
-            const result = await createTransparentPixOrder(request.body || {})
+            const result = await createTransparentOrder(request.body || {})
             return reply.send({ success: true, ...result })
         } catch (error) {
             return reply.code(400).send({ success: false, message: error.message })
