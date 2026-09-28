@@ -1,4 +1,5 @@
-import { apiPagBank, getPagBankToken } from "../lib/axiso.js"
+import { apiPagBank, getPagBankPublicKey, getPagBankToken } from "../lib/axiso.js"
+import { saveOrder } from "./order.service.js"
 
 
 export function buildCheckoutPayload({
@@ -7,7 +8,9 @@ export function buildCheckoutPayload({
     quantity = 1,
     referenceId,
     customer = {},
-    shippingAmount = null
+    shippingAmount = null,
+    paymentMethod = "CREDIT_CARD",
+    notificationUrl
 } = {}) {
 
     const numericAmount = Number(amount || 0)
@@ -50,17 +53,10 @@ export function buildCheckoutPayload({
             },
 
         // Formas de pagamento
-        payment_methods: [
-            {
-                type: "PIX"
-            },
-            {
-                type: "CREDIT_CARD"
-            },
-            {
-                type: "BOLETO"
-            }
-        ],
+        payment_methods: paymentMethod === "ALL"
+            ? [{ type: "PIX" }, { type: "CREDIT_CARD" }, { type: "DEBIT_CARD" }]
+            : [{ type: paymentMethod }],
+        notification_urls: notificationUrl ? [notificationUrl] : undefined,
 
         // Valores
         additional_amount: 0,
@@ -91,7 +87,13 @@ export async function createCheckout(requestData = {}) {
         throw new Error("Token do PagBank não configurado. Defina PAGBANK_TOKEN no arquivo backend/config/.env")
     }
 
-    const payload = buildCheckoutPayload(requestData)
+    const payload = buildCheckoutPayload({
+        ...requestData,
+        paymentMethod: requestData.paymentMethod || "CREDIT_CARD",
+        notificationUrl: requestData.notificationUrl
+            || process.env.PAGBANK_WEBHOOK_URL
+            || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
+    })
 
     try {
         const response = await apiPagBank.post("/checkouts", payload)
@@ -107,6 +109,109 @@ export async function createCheckout(requestData = {}) {
         const apiMessage = extractErrorMessage(responseData) || error?.message
         throw new Error(apiMessage || "Erro ao criar checkout")
     }
+}
+
+export function getTransparentCheckoutPublicKey() {
+    return getPagBankPublicKey()
+}
+
+export function buildTransparentOrderPayload({
+    productName = "RLV Fórmulas",
+    amount = 0,
+    quantity = 1,
+    referenceId,
+    shippingAmount = 0,
+    customer = {},
+    notificationUrl
+} = {}) {
+    const totalAmount = Math.round((Number(amount || 0) + Number(shippingAmount || 0)) * 100)
+
+    return {
+        reference_id: referenceId || `rlv-${Date.now()}`,
+        customer: {
+            name: customer.name,
+            email: customer.email,
+            tax_id: String(customer.taxId || "").replace(/\D/g, "")
+        },
+        items: [
+            {
+                reference_id: referenceId || `item-${Date.now()}`,
+                name: productName,
+                quantity: Number(quantity || 1),
+                unit_amount: Math.round(Number(amount || 0) * 100)
+            }
+        ],
+        notification_urls: notificationUrl ? [notificationUrl] : undefined,
+        charges: [
+            {
+                reference_id: referenceId || `charge-${Date.now()}`,
+                description: `Compra ${productName}`,
+                amount: {
+                    value: totalAmount,
+                    currency: "BRL"
+                },
+                payment_method: {
+                    type: "PIX",
+                    installments: 1,
+                    capture: true
+                }
+            }
+        ]
+    }
+}
+
+export async function createTransparentPixOrder(requestData = {}) {
+    if (!getPagBankToken()) {
+        throw new Error("Token do PagBank não configurado")
+    }
+
+    const customer = requestData.customer || {}
+    if (!customer.name || !customer.email || String(customer.taxId || "").replace(/\D/g, "").length !== 11) {
+        throw new Error("Nome, e-mail e CPF válido são obrigatórios")
+    }
+    if (!requestData.shipping?.service || !requestData.shipping?.to?.postal_code) {
+        throw new Error("Opção de envio e endereço de entrega são obrigatórios")
+    }
+
+    try {
+        const notificationUrl = requestData.notificationUrl
+            || process.env.PAGBANK_WEBHOOK_URL
+            || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
+        const response = await apiPagBank.post("/orders", buildTransparentOrderPayload({ ...requestData, notificationUrl }))
+        const charge = response.data?.charges?.[0] || {}
+        const qrCode = charge.payment_method?.qr_codes?.[0] || {}
+
+        await saveOrder({
+            pagbankOrderId: response.data?.id,
+            pagbankChargeId: charge.id,
+            referenceId: requestData.referenceId,
+            status: "awaiting_payment",
+            product: {
+                name: requestData.productName,
+                amount: Number(requestData.amount || 0),
+                quantity: Number(requestData.quantity || 1)
+            },
+            customer,
+            shipping: requestData.shipping,
+            shippingAmount: Number(requestData.shippingAmount || 0)
+        })
+
+        return {
+            orderId: response.data?.id,
+            chargeId: charge.id,
+            qrCodeImage: qrCode.links?.find((link) => link.media === "image/png")?.href || "",
+            qrCodeText: qrCode.text || ""
+        }
+    } catch (error) {
+        const responseData = error?.response?.data
+        const apiMessage = extractErrorMessage(responseData) || error?.message
+        throw new Error(apiMessage || "Erro ao criar pedido transparente")
+    }
+}
+
+export async function getPagBankOrder(orderId) {
+    const response = await apiPagBank.get(`/orders/${orderId}`)
+    return response.data
 }
 
 function extractErrorMessage(responseData) {

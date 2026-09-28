@@ -1,4 +1,10 @@
-import { createCheckout } from "../services/pagbank.service.js"
+import {
+    createCheckout,
+    createTransparentPixOrder,
+    getTransparentCheckoutPublicKey
+} from "../services/pagbank.service.js"
+import { handlePagBankWebhook } from "../controllers/webhook.controller.js"
+import { getOrderStatus } from "../controllers/order.controller.js"
 import {
     calculateMelhorEnvioShipping,
     createMelhorEnvioAuthorizationUrl,
@@ -6,6 +12,31 @@ import {
 } from "../services/melhor-envio.service.js"
 
 export default async function checkoutRoutes(fastify) {
+    fastify.get("/api/pagbank/public-key", async (_request, reply) => {
+        return reply.send({ success: true, publicKey: getTransparentCheckoutPublicKey() })
+    })
+
+    fastify.post("/api/pagbank/order", async (request, reply) => {
+        try {
+            const result = await createTransparentPixOrder(request.body || {})
+            return reply.send({ success: true, ...result })
+        } catch (error) {
+            return reply.code(400).send({ success: false, message: error.message })
+        }
+    })
+
+    fastify.post("/api/pagbank/webhook", async (request, reply) => {
+        try {
+            const result = await handlePagBankWebhook(request.body || {})
+            return reply.send({ success: true, ...result })
+        } catch (error) {
+            request.log.error(error)
+            return reply.code(500).send({ success: false, message: error.message })
+        }
+    })
+
+    fastify.get("/api/orders/:pagbankOrderId", getOrderStatus)
+
     fastify.get("/api/melhor-envio/authorize", async (_request, reply) => {
         try {
             return reply.redirect(createMelhorEnvioAuthorizationUrl())
