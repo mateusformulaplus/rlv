@@ -43,10 +43,10 @@ export function buildCheckoutPayload({
                 type: "CALCULATE",
                 address_modifiable: true,
                 box: {
-                    weight: 300,
+                    weight: 21,
                     dimensions: {
-                        length: 15,
-                        width: 10,
+                        length: 16,
+                        width: 11,
                         height: 2
                     }
                 }
