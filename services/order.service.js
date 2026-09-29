@@ -14,6 +14,7 @@ const dataDirectory = process.env.DATA_DIRECTORY
 	: path.resolve(__dirname, "../data")
 const ordersPath = path.join(dataDirectory, "orders.json")
 
+
 async function readOrders() {
 	try {
 		return JSON.parse(await readFile(ordersPath, "utf8"))
