@@ -115,6 +115,31 @@ export function getTransparentCheckoutPublicKey() {
     return getPagBankPublicKey()
 }
 
+function isValidTaxId(value) {
+    const digits = String(value || "").replace(/\D/g, "")
+    if (/^(\d)\1+$/.test(digits)) return false
+
+    const calculateDigit = (base, weights) => {
+        const sum = weights.reduce((total, weight, index) => total + Number(base[index]) * weight, 0)
+        const remainder = sum % 11
+        return remainder < 2 ? 0 : 11 - remainder
+    }
+
+    if (digits.length === 11) {
+        const firstDigit = calculateDigit(digits, [10, 9, 8, 7, 6, 5, 4, 3, 2])
+        const secondDigit = calculateDigit(digits, [11, 10, 9, 8, 7, 6, 5, 4, 3, 2])
+        return firstDigit === Number(digits[9]) && secondDigit === Number(digits[10])
+    }
+
+    if (digits.length === 14) {
+        const firstDigit = calculateDigit(digits, [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+        const secondDigit = calculateDigit(digits, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+        return firstDigit === Number(digits[12]) && secondDigit === Number(digits[13])
+    }
+
+    return false
+}
+
 export function buildTransparentOrderPayload({
     productName = "RLV Fórmulas",
     amount = 0,
@@ -173,7 +198,7 @@ export function buildTransparentOrderPayload({
             address: {
                 street: shipping.to.address || "Rua",
                 number: shipping.to.number || "SN",
-                complement: shipping.to.complement || "",
+                complement: String(shipping.to.complement || "").trim() || "Sem complemento",
                 locality: shipping.to.district || "Bairro",
                 city: shipping.to.city || "Cidade",
                 region_code: (shipping.to.state_abbr || "SP").toUpperCase(),
@@ -221,8 +246,7 @@ export async function createTransparentOrder(requestData = {}) {
     }
 
     const customer = requestData.customer || {}
-    const taxIdLength = String(customer.taxId || "").replace(/\D/g, "").length
-    if (!customer.name || !customer.email || (taxIdLength !== 11 && taxIdLength !== 14)) {
+    if (!customer.name || !customer.email || !isValidTaxId(customer.taxId)) {
         throw new Error("Nome, e-mail e CPF/CNPJ válido são obrigatórios")
     }
     if (!requestData.shipping?.service || !requestData.shipping?.to?.postal_code) {
