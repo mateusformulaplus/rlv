@@ -216,7 +216,12 @@ export function buildTransparentOrderPayload({
                     currency: "BRL"
                 },
                 payment_method: paymentMethod === "PIX"
-                    ? { type: paymentMethod }
+                    ? {
+                        type: paymentMethod,
+                        pix: {
+                            expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+                        }
+                    }
                     : {
                         type: paymentMethod,
                         installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,

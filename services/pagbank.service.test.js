@@ -2,14 +2,19 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { buildTransparentOrderPayload, extractPixDetails } from "./pagbank.service.js"
 
-test("builds Pix payment without card-only fields", () => {
+test("builds PagBank transparent Pix payment with expiration date", () => {
     const payload = buildTransparentOrderPayload({
         paymentMethod: "PIX",
         amount: 25,
         shippingAmount: 5
     })
+    const paymentMethod = payload.charges[0].payment_method
 
-    assert.deepEqual(payload.charges[0].payment_method, { type: "PIX" })
+    assert.equal(paymentMethod.type, "PIX")
+    assert.ok(Number.isFinite(Date.parse(paymentMethod.pix.expiration_date)))
+    assert.ok(Date.parse(paymentMethod.pix.expiration_date) > Date.now())
+    assert.equal("installments" in paymentMethod, false)
+    assert.equal("capture" in paymentMethod, false)
 })
 
 test("keeps card payment fields for credit card", () => {
