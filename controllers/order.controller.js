@@ -6,6 +6,7 @@ export async function getOrderStatus(request, reply) {
 		return reply.code(404).send({ success: false, message: "Pedido não encontrado" })
 	}
 
+	
 	return reply.send({
 		success: true,
 		order: {
