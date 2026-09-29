@@ -3,6 +3,7 @@ import test from "node:test"
 import { buildTransparentOrderPayload, extractPixDetails } from "./pagbank.service.js"
 
 test("builds PagBank transparent Pix payment with expiration date", () => {
+    const generatedAt = Date.now()
     const payload = buildTransparentOrderPayload({
         paymentMethod: "PIX",
         amount: 25,
@@ -11,8 +12,9 @@ test("builds PagBank transparent Pix payment with expiration date", () => {
     const paymentMethod = payload.charges[0].payment_method
 
     assert.equal(paymentMethod.type, "PIX")
-    assert.ok(Number.isFinite(Date.parse(paymentMethod.pix.expiration_date)))
-    assert.ok(Date.parse(paymentMethod.pix.expiration_date) > Date.now())
+    assert.match(paymentMethod.pix.expiration_date, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
+    assert.ok(Date.parse(paymentMethod.pix.expiration_date) > generatedAt)
+    assert.ok(Date.parse(paymentMethod.pix.expiration_date) - generatedAt <= 23 * 60 * 60 * 1000)
     assert.equal("installments" in paymentMethod, false)
     assert.equal("capture" in paymentMethod, false)
 })

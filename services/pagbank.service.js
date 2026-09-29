@@ -173,8 +173,10 @@ export function buildTransparentOrderPayload({
 
     const paymentMethodDetails = { type: paymentMethod }
     if (paymentMethod === "PIX") {
+        const pixExpirationDate = new Date(Date.now() + 23 * 60 * 60 * 1000)
+        pixExpirationDate.setMilliseconds(0)
         paymentMethodDetails.pix = {
-            expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            expiration_date: pixExpirationDate.toISOString().replace(/\.\d{3}Z$/, "Z")
         }
     } else if (paymentMethod === "CREDIT_CARD") {
         paymentMethodDetails.installments = Number(installments || 1)
