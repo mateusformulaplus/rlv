@@ -215,11 +215,13 @@ export function buildTransparentOrderPayload({
                     value: totalAmount,
                     currency: "BRL"
                 },
-                payment_method: {
-                    type: paymentMethod,
-                    installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,
-                    capture: true
-                }
+                payment_method: paymentMethod === "PIX"
+                    ? { type: paymentMethod }
+                    : {
+                        type: paymentMethod,
+                        installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,
+                        capture: true
+                    }
             }
         ]
     }

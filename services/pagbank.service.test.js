@@ -1,6 +1,28 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { extractPixDetails } from "./pagbank.service.js"
+import { buildTransparentOrderPayload, extractPixDetails } from "./pagbank.service.js"
+
+test("builds Pix payment without card-only fields", () => {
+    const payload = buildTransparentOrderPayload({
+        paymentMethod: "PIX",
+        amount: 25,
+        shippingAmount: 5
+    })
+
+    assert.deepEqual(payload.charges[0].payment_method, { type: "PIX" })
+})
+
+test("keeps card payment fields for credit card", () => {
+    const payload = buildTransparentOrderPayload({
+        paymentMethod: "CREDIT_CARD",
+        amount: 25,
+        installments: 3,
+        cardToken: "encrypted-card"
+    })
+
+    assert.equal(payload.charges[0].payment_method.installments, 3)
+    assert.equal(payload.charges[0].payment_method.capture, true)
+})
 
 test("extracts Pix QR code from legacy charge response", () => {
     const result = extractPixDetails({
