@@ -6,8 +6,11 @@ import { fileURLToPath } from "url"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.resolve(__dirname, "../config/.env")
-const tokenPath = path.resolve(__dirname, "../data/melhor-envio-token.json")
-const statesPath = path.resolve(__dirname, "../data/melhor-envio-states.json")
+const dataDirectory = process.env.DATA_DIRECTORY
+    ? path.resolve(process.env.DATA_DIRECTORY)
+    : path.resolve(__dirname, "../data")
+const tokenPath = path.join(dataDirectory, "melhor-envio-token.json")
+const statesPath = path.join(dataDirectory, "melhor-envio-states.json")
 
 // Cache em memoria dos states OAuth (tambem persistido em disco)
 const authorizationStates = new Set()

@@ -9,7 +9,9 @@ import {
 } from "./melhor-envio.service.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const dataDirectory = path.resolve(__dirname, "../data")
+const dataDirectory = process.env.DATA_DIRECTORY
+	? path.resolve(process.env.DATA_DIRECTORY)
+	: path.resolve(__dirname, "../data")
 const ordersPath = path.join(dataDirectory, "orders.json")
 
 async function readOrders() {
