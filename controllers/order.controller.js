@@ -12,7 +12,7 @@ export async function getOrderStatus(request, reply) {
 			id: order.pagbankOrderId,
 			status: order.status,
 			trackingCode: order.trackingCode || null,
-			label: order.melhorEnvioLabel || null,
+			labelReady: Boolean(order.melhorEnvioLabel),
 			updatedAt: order.updatedAt
 		}
 	})

@@ -240,6 +240,32 @@ export function buildTransparentOrderPayload({
     return payload
 }
 
+export function extractPixDetails(order = {}) {
+    const charge = order.charges?.[0] || {}
+    const candidates = [
+        charge.payment_method?.qr_codes?.[0],
+        order.qr_codes?.[0],
+        charge.qr_code,
+        charge.payment_method?.pix?.qr_code,
+        charge.payment_method?.pix
+    ].filter(Boolean)
+    const qrCode = candidates.find((candidate) => typeof candidate.text === "string") || {}
+    const links = [
+        ...(Array.isArray(qrCode.links) ? qrCode.links : []),
+        ...(Array.isArray(charge.links) ? charge.links : []),
+        ...(Array.isArray(order.links) ? order.links : [])
+    ]
+    const imageLink = links.find((link) =>
+        String(link?.media || "").toLowerCase() === "image/png"
+        || String(link?.rel || "").toUpperCase() === "QRCODE.PNG"
+    )
+
+    return {
+        qrCodeText: qrCode.text || "",
+        qrCodeImage: imageLink?.href || ""
+    }
+}
+
 export async function createTransparentOrder(requestData = {}) {
     if (!getPagBankToken()) {
         throw new Error("Token do PagBank não configurado")
@@ -260,13 +286,14 @@ export async function createTransparentOrder(requestData = {}) {
         const payload = buildTransparentOrderPayload({ ...requestData, notificationUrl })
         const response = await apiPagBank.post("/orders", payload)
         const charge = response.data?.charges?.[0] || {}
-        const qrCode = charge.payment_method?.qr_codes?.[0] || {}
+        const pixDetails = extractPixDetails(response.data || {})
+        const status = charge.status || response.data?.status || "WAITING"
 
         await saveOrder({
             pagbankOrderId: response.data?.id,
             pagbankChargeId: charge.id,
             referenceId: requestData.referenceId,
-            status: charge.status || "awaiting_payment",
+            status,
             product: {
                 name: requestData.productName,
                 amount: Number(requestData.amount || 0),
@@ -280,10 +307,9 @@ export async function createTransparentOrder(requestData = {}) {
         return {
             orderId: response.data?.id,
             chargeId: charge.id,
-            status: charge.status,
+            status,
             paymentResponse: charge.payment_response,
-            qrCodeImage: qrCode.links?.find((link) => link.media === "image/png")?.href || "",
-            qrCodeText: qrCode.text || ""
+            ...pixDetails
         }
     } catch (error) {
         const responseData = error?.response?.data
