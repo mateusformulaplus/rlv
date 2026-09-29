@@ -191,7 +191,7 @@ export function buildTransparentOrderPayload({
                     currency: "BRL"
                 },
                 payment_method: {
-                    type: paymentMethod === "CREDIT_CARD" ? "CREDIT_CARD" : "PIX",
+                    type: paymentMethod,
                     installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,
                     capture: true
                 }
@@ -199,7 +199,7 @@ export function buildTransparentOrderPayload({
         ]
     }
 
-    if (paymentMethod === "CREDIT_CARD") {
+    if (paymentMethod === "CREDIT_CARD" || paymentMethod === "DEBIT_CARD") {
         if (!cardToken) {
             throw new Error("Token criptografado do cartão não informado.")
         }
@@ -221,8 +221,9 @@ export async function createTransparentOrder(requestData = {}) {
     }
 
     const customer = requestData.customer || {}
-    if (!customer.name || !customer.email || String(customer.taxId || "").replace(/\D/g, "").length !== 11) {
-        throw new Error("Nome, e-mail e CPF válido são obrigatórios")
+    const taxIdLength = String(customer.taxId || "").replace(/\D/g, "").length
+    if (!customer.name || !customer.email || (taxIdLength !== 11 && taxIdLength !== 14)) {
+        throw new Error("Nome, e-mail e CPF/CNPJ válido são obrigatórios")
     }
     if (!requestData.shipping?.service || !requestData.shipping?.to?.postal_code) {
         throw new Error("Opção de envio e endereço de entrega são obrigatórios")
