@@ -29,6 +29,19 @@ test("keeps card payment fields for credit card", () => {
     assert.equal(payload.charges[0].payment_method.capture, true)
 })
 
+test("builds debit payment without credit installment fields", () => {
+    const payload = buildTransparentOrderPayload({
+        paymentMethod: "DEBIT_CARD",
+        amount: 25,
+        cardToken: "encrypted-card"
+    })
+    const paymentMethod = payload.charges[0].payment_method
+
+    assert.equal(paymentMethod.type, "DEBIT_CARD")
+    assert.equal("installments" in paymentMethod, false)
+    assert.equal("capture" in paymentMethod, false)
+})
+
 test("extracts Pix QR code from legacy charge response", () => {
     const result = extractPixDetails({
         charges: [{

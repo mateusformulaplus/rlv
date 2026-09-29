@@ -171,6 +171,16 @@ export function buildTransparentOrderPayload({
         customerName = `${customerName} Silva`
     }
 
+    const paymentMethodDetails = { type: paymentMethod }
+    if (paymentMethod === "PIX") {
+        paymentMethodDetails.pix = {
+            expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        }
+    } else if (paymentMethod === "CREDIT_CARD") {
+        paymentMethodDetails.installments = Number(installments || 1)
+        paymentMethodDetails.capture = true
+    }
+
     const payload = {
         reference_id: referenceId || `rlv-${Date.now()}`,
         customer: {
@@ -215,18 +225,7 @@ export function buildTransparentOrderPayload({
                     value: totalAmount,
                     currency: "BRL"
                 },
-                payment_method: paymentMethod === "PIX"
-                    ? {
-                        type: paymentMethod,
-                        pix: {
-                            expiration_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-                        }
-                    }
-                    : {
-                        type: paymentMethod,
-                        installments: paymentMethod === "CREDIT_CARD" ? Number(installments || 1) : 1,
-                        capture: true
-                    }
+                payment_method: paymentMethodDetails
             }
         ]
     }
