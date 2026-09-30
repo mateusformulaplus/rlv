@@ -1,11 +1,5 @@
-import dotenv from "dotenv"
 import bcrypt from "bcryptjs"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
 import { getPrismaClient } from "../lib/prisma.js"
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-dotenv.config({ path: join(__dirname, "../config/.env") })
 
 const username = process.env.EXPEDICAO_USER?.trim()
 const password = process.env.EXPEDICAO_PASS
@@ -14,11 +8,11 @@ const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username || "") && username.le
 const isUsername = /^[a-zA-Z0-9._-]{3,40}$/.test(username || "")
 
 if (!username || (!isEmail && !isUsername)) {
-  throw new Error("Defina EXPEDICAO_USER como usuário válido ou email em config/.env.")
+  throw new Error("Para o bootstrap inicial, forneça EXPEDICAO_USER temporariamente no ambiente do processo.")
 }
 
 if (!password || password.length < 12) {
-  throw new Error("Defina EXPEDICAO_PASS com pelo menos 12 caracteres em config/.env.")
+  throw new Error("Para o bootstrap inicial, forneça EXPEDICAO_PASS temporariamente com pelo menos 12 caracteres.")
 }
 
 const passwordHash = await bcrypt.hash(password, 12)

@@ -78,10 +78,9 @@ export function toExpedicaoPedidoData(order) {
 	}
 }
 
-export async function syncOrderToExpedicao(order) {
+export async function syncOrderToExpedicao(order, prisma = getPrismaClient()) {
 	if (!order.pagbankOrderId) return
 
-	const prisma = getPrismaClient()
 	const pedido = toExpedicaoPedidoData(order)
 	const conflictingCode = await prisma.expedicaoPedido.findUnique({ where: { codigoPedido: pedido.codigoPedido } })
 	if (conflictingCode && conflictingCode.pagbankOrderId !== pedido.pagbankOrderId) {
@@ -95,20 +94,18 @@ export async function syncOrderToExpedicao(order) {
 	})
 }
 
-export async function saveOrder(order) {
+export async function saveOrder(order, prisma = getPrismaClient()) {
 	const { pagbankOrderId, createdAt: _createdAt, updatedAt: _updatedAt, ...data } = order
-	const record = await getPrismaClient().order.upsert({
-		where: { pagbankOrderId },
-		create: { pagbankOrderId, data },
-		update: { data }
+	return prisma.$transaction(async (transaction) => {
+		const record = await transaction.order.upsert({
+			where: { pagbankOrderId },
+			create: { pagbankOrderId, data },
+			update: { data }
+		})
+		const savedOrder = toOrder(record)
+		await syncOrderToExpedicao(savedOrder, transaction)
+		return savedOrder
 	})
-	const savedOrder = toOrder(record)
-	try {
-		await syncOrderToExpedicao(savedOrder)
-	} catch (error) {
-		console.error("[Expedição] Falha ao sincronizar pedido PagBank:", error.code || error.name || "erro")
-	}
-	return savedOrder
 }
 
 export async function findOrderByPagBankId(pagbankOrderId) {

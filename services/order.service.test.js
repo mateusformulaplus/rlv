@@ -1,6 +1,24 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { toExpedicaoPedidoData } from "./order.service.js"
+import { saveOrder, toExpedicaoPedidoData } from "./order.service.js"
+
+function mockPrisma({ upsertExpedition = async ({ create }) => create } = {}) {
+  const transaction = {
+    order: {
+      upsert: async ({ create }) => ({
+        ...create,
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z")
+      })
+    },
+    expedicaoPedido: {
+      findUnique: async () => null,
+      upsert: upsertExpedition
+    }
+  }
+
+  return { $transaction: (callback) => callback(transaction) }
+}
 
 test("maps PagBank orders into the expedition dashboard record", () => {
   const pedido = toExpedicaoPedidoData({
@@ -49,4 +67,38 @@ test("maps PagBank orders into the expedition dashboard record", () => {
     shipping: { service: 3 }
   })
   assert.equal(legacyOrder.frete, "Serviço 3")
+})
+
+test("saves PagBank and expedition records in one transaction", async () => {
+  const order = {
+    pagbankOrderId: "ORDER-ATOMIC",
+    referenceId: "KIT-ATOMIC",
+    status: "paid",
+    customer: { name: "Cliente Teste" },
+    product: { name: "Kit RLV", quantity: 1 }
+  }
+  let expeditionRecord
+  const prisma = mockPrisma({
+    upsertExpedition: async ({ create }) => {
+      expeditionRecord = create
+      return create
+    }
+  })
+
+  const savedOrder = await saveOrder(order, prisma)
+
+  assert.equal(savedOrder.pagbankOrderId, "ORDER-ATOMIC")
+  assert.equal(expeditionRecord.pagbankOrderId, "ORDER-ATOMIC")
+  assert.equal(expeditionRecord.statusPagamento, "Pago")
+})
+
+test("propagates expedition write failures so the transaction can roll back", async () => {
+  const prisma = mockPrisma({
+    upsertExpedition: async () => { throw new Error("database unavailable") }
+  })
+
+  await assert.rejects(
+    saveOrder({ pagbankOrderId: "ORDER-FAIL", status: "paid" }, prisma),
+    /database unavailable/
+  )
 })
