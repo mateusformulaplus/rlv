@@ -8,6 +8,7 @@ const tables = [
   "melhor_envio_oauth_states"
 ]
 
+
 const prisma = getPrismaClient()
 
 try {
