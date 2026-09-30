@@ -39,7 +39,7 @@ export default async function checkoutRoutes(fastify) {
 
     fastify.get("/api/melhor-envio/authorize", async (_request, reply) => {
         try {
-            return reply.redirect(createMelhorEnvioAuthorizationUrl())
+            return reply.redirect(await createMelhorEnvioAuthorizationUrl())
         } catch (error) {
             return reply.code(500).send({ success: false, message: error.message })
         }

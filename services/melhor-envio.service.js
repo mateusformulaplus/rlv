@@ -1,34 +1,12 @@
 import axios from "axios"
 import { randomUUID } from "crypto"
-import { mkdirSync, readFileSync, writeFileSync } from "fs"
+import { readFileSync } from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
+import { getPrismaClient } from "../lib/prisma.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.resolve(__dirname, "../config/.env")
-const dataDirectory = process.env.DATA_DIRECTORY
-    ? path.resolve(process.env.DATA_DIRECTORY)
-    : path.resolve(__dirname, "../data")
-const tokenPath = path.join(dataDirectory, "melhor-envio-token.json")
-const statesPath = path.join(dataDirectory, "melhor-envio-states.json")
-
-// Cache em memoria dos states OAuth (tambem persistido em disco)
-const authorizationStates = new Set()
-let accessToken = ""
-
-// ---------------------------------------------------------------------------
-// Helpers de leitura
-// ---------------------------------------------------------------------------
-
-function readStoredAccessToken() {
-    try {
-        const storedToken = JSON.parse(readFileSync(tokenPath, "utf8"))
-        if (storedToken.expiresAt && storedToken.expiresAt <= Date.now()) return ""
-        return storedToken.accessToken || ""
-    } catch (_error) {
-        return ""
-    }
-}
 
 function readEnvValues() {
     const values = {}
@@ -77,44 +55,16 @@ function ensureClientConfiguration() {
 }
 
 // ---------------------------------------------------------------------------
-// Persistencia do state OAuth (sobrevive a restarts do servidor no Render)
-// ---------------------------------------------------------------------------
-
-function loadPersistedStates() {
-    try {
-        const data = JSON.parse(readFileSync(statesPath, "utf8"))
-        const now = Date.now()
-        const valid = (data.states || []).filter(s => s.expiresAt > now)
-        valid.forEach(s => authorizationStates.add(s.value))
-    } catch (_) { /* arquivo ainda nao existe */ }
-}
-
-function persistState(state) {
-    try {
-        mkdirSync(path.dirname(statesPath), { recursive: true })
-        let existing = []
-        try {
-            const data = JSON.parse(readFileSync(statesPath, "utf8"))
-            existing = (data.states || []).filter(s => s.expiresAt > Date.now())
-        } catch (_) { }
-        existing.push({ value: state, expiresAt: Date.now() + 10 * 60 * 1000 })
-        writeFileSync(statesPath, JSON.stringify({ states: existing }), "utf8")
-    } catch (_) { }
-}
-
-// Carrega states persistidos ao iniciar o modulo
-loadPersistedStates()
-
-// ---------------------------------------------------------------------------
 // OAuth
 // ---------------------------------------------------------------------------
 
-export function createMelhorEnvioAuthorizationUrl() {
+export async function createMelhorEnvioAuthorizationUrl() {
     ensureClientConfiguration()
 
     const state = randomUUID()
-    authorizationStates.add(state)
-    persistState(state)
+    await getPrismaClient().melhorEnvioOAuthState.create({
+        data: { state, expiresAt: new Date(Date.now() + 10 * 60 * 1000) }
+    })
 
     const params = new URLSearchParams({
         client_id: getValue("MELHOR_ENVIO_CLIENT_ID"),
@@ -129,22 +79,18 @@ export function createMelhorEnvioAuthorizationUrl() {
 export async function exchangeMelhorEnvioCode(code, state) {
     ensureClientConfiguration()
 
-    // Recarrega states do disco (caso o servidor tenha reiniciado entre a
-    // geracao da URL de autorizacao e o retorno do callback)
-    loadPersistedStates()
-
     if (!code) {
         throw new Error("Codigo de autorizacao do Melhor Envio nao fornecido")
     }
-
-    // Valida o state somente se foi fornecido E temos states registrados.
-    // Isso evita rejeitar o callback quando o servidor reiniciou e nao ha
-    // arquivo de states ainda.
-    if (state && authorizationStates.size > 0 && !authorizationStates.has(state)) {
-        throw new Error("State de autorizacao invalido ou expirado. Clique em 'Autorizar Melhor Envio' novamente.")
+    if (!state) {
+        throw new Error("State de autorizacao nao fornecido")
     }
 
-    if (state) authorizationStates.delete(state)
+    const savedState = await getPrismaClient().melhorEnvioOAuthState.findUnique({ where: { state } })
+    if (!savedState || savedState.expiresAt <= new Date()) {
+        throw new Error("State de autorizacao invalido ou expirado. Clique em 'Autorizar Melhor Envio' novamente.")
+    }
+    await getPrismaClient().melhorEnvioOAuthState.delete({ where: { state } })
 
     const body = new URLSearchParams({
         grant_type: "authorization_code",
@@ -161,18 +107,19 @@ export async function exchangeMelhorEnvioCode(code, state) {
             { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
         )
 
-        accessToken = response.data?.access_token || ""
+        const accessToken = response.data?.access_token || ""
         if (!accessToken) {
             throw new Error("O Melhor Envio nao retornou um token de acesso")
         }
 
-        mkdirSync(path.dirname(tokenPath), { recursive: true })
-        writeFileSync(tokenPath, JSON.stringify({
-            accessToken,
-            expiresAt: response.data?.expires_in
-                ? Date.now() + Number(response.data.expires_in) * 1000
-                : null
-        }), "utf8")
+        const expiresAt = response.data?.expires_in
+            ? new Date(Date.now() + Number(response.data.expires_in) * 1000)
+            : null
+        await getPrismaClient().melhorEnvioCredential.upsert({
+            where: { id: "melhor-envio" },
+            create: { id: "melhor-envio", accessToken, expiresAt },
+            update: { accessToken, expiresAt }
+        })
 
         return { expiresIn: response.data?.expires_in || null }
     } catch (error) {
@@ -190,7 +137,7 @@ export async function exchangeMelhorEnvioCode(code, state) {
 // ---------------------------------------------------------------------------
 
 export async function calculateMelhorEnvioShipping(shipment) {
-    const token = getAccessToken()
+    const token = await getAccessToken()
 
     const shipmentWithOrigin = {
         ...shipment,
@@ -218,13 +165,22 @@ export async function calculateMelhorEnvioShipping(shipment) {
     return response.data
 }
 
-function getAccessToken() {
-    const token = getValue("MELHOR_ENVIO_ACCESS_TOKEN") || accessToken || readStoredAccessToken()
-    if (!token) throw new Error("Autorize o Melhor Envio antes de calcular o frete")
-    return token
+async function getAccessToken() {
+    const credential = await getPrismaClient().melhorEnvioCredential.findUnique({ where: { id: "melhor-envio" } })
+    const token = credential?.expiresAt && credential.expiresAt <= new Date()
+        ? ""
+        : credential?.accessToken || ""
+    if (token) return token
+
+    const configuredToken = getValue("MELHOR_ENVIO_ACCESS_TOKEN")
+    if (configuredToken) return configuredToken
+
+    throw new Error("Autorize o Melhor Envio antes de calcular o frete")
 }
 
-function melhorEnvioRequest(method, url, data, config = {}) {
+
+async function melhorEnvioRequest(method, url, data, config = {}) {
+    const token = await getAccessToken()
     return axios({
         method,
         url: `${getMelhorEnvioBaseUrl()}${url}`,
@@ -232,7 +188,7 @@ function melhorEnvioRequest(method, url, data, config = {}) {
         ...config,
         headers: {
             Accept: "application/json",
-            Authorization: `Bearer ${getAccessToken()}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
             ...(config.headers || {})
         }

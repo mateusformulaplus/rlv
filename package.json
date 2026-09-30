@@ -2,12 +2,20 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "db:generate": "dotenv -e ./config/.env -- prisma generate",
+    "db:push": "dotenv -e ./config/.env -- prisma db push"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.3",
+    "@prisma/client": "^6.19.0",
     "axios": "^1.19.0",
-    "fastify": "^5.11.2"
+    "fastify": "^5.11.2",
+    "prisma": "^6.19.0"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0"
   }
 }
