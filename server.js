@@ -1,38 +1,75 @@
+import dotenv from "dotenv"
 import fastify from "fastify"
 import fastifyStatic from "@fastify/static"
+import fastifyCors from "@fastify/cors"
+import fastifyCookie from "@fastify/cookie"
+import fastifyJwt from "@fastify/jwt"
+import fastifyRateLimit from "@fastify/rate-limit"
+import { randomBytes } from "node:crypto"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
 import router from "./router/router.js"
-
-import  fastifyCors  from "@fastify/cors"
+import expedicaoRoutes from "./routes/expedicao.routes.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+dotenv.config({ path: join(__dirname, "config/.env") })
+dotenv.config()
 
-// Pasta raiz do projeto (um nível acima de /backend)
-const rootDir = join(__dirname, "..")
+let jwtSecret = process.env.JWT_SECRET || process.env.COOKIE_SECRET
+if (!jwtSecret && process.env.NODE_ENV !== "production") {
+    jwtSecret = randomBytes(48).toString("base64url")
+    console.warn("JWT_SECRET ausente: chave temporária gerada para desenvolvimento; sessões serão encerradas ao reiniciar o servidor.")
+}
+
+if (!jwtSecret || jwtSecret.length < 32) {
+    throw new Error("Configure JWT_SECRET com pelo menos 32 caracteres no ambiente de produção.")
+}
+
+const frontendDistDir = join(__dirname, "../frontend/dist")
 
 const server = fastify({ logger: false })
 
+server.register(fastifyCookie, {
+    hook: "onRequest"
+})
+
+server.register(fastifyJwt, {
+    secret: jwtSecret,
+    sign: { expiresIn: "12h" }
+})
+
+server.register(fastifyRateLimit, {
+    global: false
+})
 
 server.register(fastifyCors, {
-    origin: "*", // Permite todas as origens (substitua por sua origem específica em produção)
+    origin: process.env.FRONTEND_ORIGIN ? [process.env.FRONTEND_ORIGIN] : false,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 })
 
-// Serve o index.html e todos os assets estáticos (imagens, etc.)
 server.register(fastifyStatic, {
-    root: rootDir,
+    root: frontendDistDir,
     prefix: "/",
-    // Não sobrescreve as rotas de API
-    decorateReply: false
+    decorateReply: true
 })
 
-// Garante que qualquer rota desconhecida retorne o index.html somente para páginas web
-// e responda em JSON para chamadas de API desconhecidas.
+server.register(router)
+server.register(expedicaoRoutes)
+
+server.get("/", async (_request, reply) => {
+    return reply.sendFile("index.html")
+})
+
+server.get("/api/health", async () => {
+    return {
+        status: "ok"
+    }
+})
+
 server.setNotFoundHandler((request, reply) => {
     if (request.method !== "GET" && request.method !== "HEAD") {
         return reply.code(404).send({
@@ -41,15 +78,14 @@ server.setNotFoundHandler((request, reply) => {
         })
     }
 
-    return reply.sendFile("index.html")
-})
-
-server.register(router)
-
-server.get("/api/health", async () => {
-    return {
-        status: "ok"
+    if (request.raw.url?.startsWith("/api/")) {
+        return reply.code(404).send({
+            success: false,
+            message: "Rota de API não encontrada"
+        })
     }
+
+    return reply.sendFile("index.html")
 })
 
 const port = Number(process.env.PORT || 3001)

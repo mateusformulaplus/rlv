@@ -1,0 +1,81 @@
+[
+  {
+    "id": "PED-2001",
+    "codigoPedido": "PED-2001",
+    "statusPagamento": "Pago",
+    "cliente": {
+      "nome": "Ana Souza",
+      "telefone": "(11) 91234-5678",
+      "email": ""
+    },
+    "telefone": "(11) 91234-5678",
+    "produto": "Kit Entrega",
+    "quantidade": 1,
+    "endereco": {
+      "rua": "Rua do Comércio",
+      "numero": "101",
+      "bairro": "Vila Nova",
+      "cidade": "Campinas",
+      "estado": "SP",
+      "cep": "13010-100",
+      "completo": "Rua do Comércio, 101 - Vila Nova, Campinas/SP - 13010-100"
+    },
+    "frete": "SEDEX",
+    "peso": "1.5 kg",
+    "dimensoes": "20x15x10 cm",
+    "createdAt": "2026-09-30T14:19:16.706Z",
+    "updatedAt": "2026-09-30T14:19:16.706Z"
+  },
+  {
+    "id": "PED-1001",
+    "codigoPedido": "PED-1001",
+    "statusPagamento": "Pago",
+    "cliente": {
+      "nome": "Maria da Silva",
+      "telefone": "(11) 98888-1234"
+    },
+    "telefone": "(11) 98888-1234",
+    "produto": "Kit Básico",
+    "quantidade": 2,
+    "endereco": {
+      "rua": "Rua das Flores",
+      "numero": "245",
+      "bairro": "Centro",
+      "cidade": "São Paulo",
+      "estado": "SP",
+      "cep": "01000-000",
+      "completo": "Rua das Flores, 245 - Centro, São Paulo/SP - 01000-000"
+    },
+    "frete": "SEDEX",
+    "peso": "1.2 kg",
+    "dimensoes": "18x12x8 cm",
+    "createdAt": "2026-09-30T09:00:00.000Z",
+    "updatedAt": "2026-09-30T09:00:00.000Z"
+  },
+  {
+    "id": "PED-1002",
+    "codigoPedido": "PED-1002",
+    "statusPagamento": "Pendente",
+    "cliente": {
+      "nome": "João Pereira",
+      "telefone": "(21) 97777-4321"
+    },
+    "telefone": "(21) 97777-4321",
+    "produto": "Voucher Premium",
+    "quantidade": 1,
+    "endereco": {
+      "rua": "Avenida Atlântica",
+      "numero": "780",
+      "bairro": "Copacabana",
+      "cidade": "Rio de Janeiro",
+      "estado": "RJ",
+      "cep": "22030-001",
+      "completo": "Avenida Atlântica, 780 - Copacabana, Rio de Janeiro/RJ - 22030-001"
+    },
+    "frete": "Jadlog",
+    "peso": "0.8 kg",
+    "dimensoes": "12x10x5 cm",
+    "createdAt": "2026-09-29T15:30:00.000Z",
+    "updatedAt": "2026-09-29T15:30:00.000Z"
+  }
+]

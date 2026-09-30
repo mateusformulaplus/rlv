@@ -17,6 +17,50 @@ model Order {
   @@map("orders")
 }
 
+model ExpedicaoPedido {
+  id                 String   @id @default(cuid())
+  codigoPedido       String   @unique
+  pagbankOrderId     String?  @unique
+  statusPagamento    String   @default("Pendente")
+  clienteNome        String
+  clienteTelefone    String?
+  clienteEmail       String?
+  produtoNome        String
+  produtoQuantidade  Int      @default(1)
+  enderecoRua        String
+  enderecoNumero     String?
+  enderecoBairro     String
+  enderecoCidade     String
+  enderecoEstado     String
+  enderecoCep        String
+  enderecoCompleto   String?
+  frete              String?
+  valorFrete         Float    @default(0)
+  statusExpedicao    String   @default("Aguardando pagamento")
+  codigoRastreio     String?
+  etiquetaDisponivel Boolean  @default(false)
+  peso               String?
+  dimensoes          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("expedicao_pedidos")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  displayName  String
+  passwordHash String
+  role         String    @default("operator")
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("users")
+}
+
 model MelhorEnvioCredential {
   id          String    @id
   accessToken String
