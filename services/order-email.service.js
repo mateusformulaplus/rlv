@@ -115,7 +115,7 @@ export function buildTrackingEmail({ orderId, customer = {}, shipping = {}, trac
 }
 
 const RESEND_TEST_SENDER = "onboarding@resend.dev"
-const RESEND_TEST_ACCOUNT_EMAIL = "expedicao@formulaplus.com.br"
+const RESEND_TEST_ACCOUNT_EMAIL = "expedicao@formulaplusrj.com.br"
 
 export function resolveTrackingRecipient(customer = {}, sender = process.env.RESEND_FROM_EMAIL || "") {
   if (String(sender).trim().toLowerCase() === RESEND_TEST_SENDER) {
