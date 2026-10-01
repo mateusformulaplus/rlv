@@ -90,6 +90,27 @@ test("extracts Pix QR code from charge qr_code response", () => {
     })
 })
 
+test("extracts Pix QR code from the PagBank payment_method.pix.qr_codes response", () => {
+    const result = extractPixDetails({
+        charges: [{
+            payment_method: {
+                type: "PIX",
+                pix: {
+                    qr_codes: [{
+                        text: "pix-copy-and-paste",
+                        links: [{ rel: "QRCODE.PNG", href: "https://example.test/pix.png" }]
+                    }]
+                }
+            }
+        }]
+    })
+
+    assert.deepEqual(result, {
+        qrCodeText: "pix-copy-and-paste",
+        qrCodeImage: "https://example.test/pix.png"
+    })
+})
+
 test("keeps kit pricing intact while validating the actual shipping quantity", () => {
     const payload = buildTransparentOrderPayload({ quantity: 6 })
     assert.equal(payload.items[0].quantity, 1)

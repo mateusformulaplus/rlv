@@ -254,6 +254,7 @@ export function extractPixDetails(order = {}) {
     const charge = order.charges?.[0] || {}
     const candidates = [
         charge.payment_method?.qr_codes?.[0],
+        charge.payment_method?.pix?.qr_codes?.[0],
         order.qr_codes?.[0],
         charge.qr_code,
         charge.payment_method?.pix?.qr_code,
