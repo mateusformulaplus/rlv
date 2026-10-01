@@ -112,7 +112,7 @@ export default async function expedicaoRoutes(fastify, options = {}) {
       return reply.code(400).send({ success: false, message: "Usuário e senha são obrigatórios." })
     }
 
-    const user = await repository.findByUsername(String(username).trim())
+    const user = await repository.findByUsername(String(username).trim().toLowerCase())
     if (!user?.active || !(await bcrypt.compare(String(password), user.passwordHash))) {
       return reply.code(401).send({ success: false, message: "Credenciais inválidas." })
     }
@@ -241,7 +241,7 @@ export default async function expedicaoRoutes(fastify, options = {}) {
 
     try {
       const user = await repository.create({
-        username: String(input.username).trim(),
+        username: String(input.username).trim().toLowerCase(),
         displayName: String(input.displayName).trim(),
         passwordHash: await bcrypt.hash(String(input.password), 12),
         role: input.role,

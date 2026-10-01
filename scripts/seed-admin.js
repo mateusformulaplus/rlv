@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs"
 import { getPrismaClient } from "../lib/prisma.js"
 
-const username = process.env.EXPEDICAO_USER?.trim()
+const username = process.env.EXPEDICAO_USER?.trim().toLowerCase()
 const password = process.env.EXPEDICAO_PASS
 const displayName = process.env.EXPEDICAO_NAME?.trim() || "Administrador"
 const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username || "") && username.length <= 254

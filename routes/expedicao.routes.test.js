@@ -53,7 +53,7 @@ test("protects expedition routes with an HttpOnly JWT cookie", async () => {
       method: "POST",
       url: "/api/expedicao/login",
       payload: {
-        username: adminUser.username,
+        username: adminUser.username.toUpperCase(),
         password: "test-expedition-password"
       }
     })
