@@ -23,7 +23,7 @@
     "dotenv": "^16.4.5",
     "fastify": "^5.11.2",
     "prisma": "^6.19.0",
-    "resend": "^6.31.0"
+    "resend": "^6.32.0"
   },
   "devDependencies": {
     "dotenv-cli": "^8.0.0"

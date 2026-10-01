@@ -17,11 +17,25 @@ function formatCurrency(value) {
   })
 }
 
+const RESEND_TEST_SENDER = "onboarding@resend.dev"
+const RESEND_TEST_ACCOUNT_EMAIL = "expedicao@formulaplus.com.br"
+
+export function resolveTrackingRecipient(customer = {}, sender = process.env.RESEND_FROM_EMAIL || "") {
+  if (String(sender).trim().toLowerCase() === RESEND_TEST_SENDER) {
+    return RESEND_TEST_ACCOUNT_EMAIL
+  }
+  return String(process.env.RESEND_TO_EMAIL || customer.email || "").trim()
+}
+
 export async function sendOrderNotification(order) {
+  const customer = order.customer || {}
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { sent: false, reason: "not_configured" }
 
-  const customer = order.customer || {}
+  const sender = String(process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev").trim()
+  const recipient = sender.toLowerCase() === RESEND_TEST_SENDER
+    ? RESEND_TEST_ACCOUNT_EMAIL
+    : process.env.RESEND_TO_EMAIL || "expedicao@formaplusrj.com.br"
   const shipping = order.shipping || {}
   const address = shipping.to || {}
   const total = Number(order.amount || 0) + Number(order.shippingAmount || 0)
@@ -37,8 +51,8 @@ export async function sendOrderNotification(order) {
 
   const resend = new Resend(apiKey)
   const { data, error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev",
-    to: process.env.RESEND_TO_EMAIL || "expedicao@formaplusrj.com.br",
+    from: sender,
+    to: recipient,
     subject: `Novo pedido ${orderId} - ${customer.name || "Cliente"}`,
     text: [
       "Novo pedido recebido",
@@ -114,23 +128,13 @@ export function buildTrackingEmail({ orderId, customer = {}, shipping = {}, trac
   }
 }
 
-const RESEND_TEST_SENDER = "onboarding@resend.dev"
-const RESEND_TEST_ACCOUNT_EMAIL = "expedicao@formulaplus.com.br"
-
-export function resolveTrackingRecipient(customer = {}, sender = process.env.RESEND_FROM_EMAIL || "") {
-  if (String(sender).trim().toLowerCase() === RESEND_TEST_SENDER) {
-    return RESEND_TEST_ACCOUNT_EMAIL
-  }
-  return String(process.env.RESEND_TO_EMAIL || customer.email || "").trim()
-}
-
 export async function sendTrackingNotification({ orderId, customer = {}, shipping = {}, trackingCode }) {
-  const sender = String(process.env.RESEND_FROM_EMAIL || "").trim()
-  const recipient = resolveTrackingRecipient(customer, sender)
+  const recipient = resolveTrackingRecipient(customer)
   if (!recipient) return { sent: false, reason: "missing_recipient" }
 
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { sent: false, reason: "not_configured" }
+  const sender = String(process.env.RESEND_FROM_EMAIL || "").trim()
   if (!sender) return { sent: false, reason: "sender_not_configured" }
 
   const email = buildTrackingEmail({ orderId, customer, shipping, trackingCode })

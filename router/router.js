@@ -28,7 +28,7 @@ export default async function checkoutRoutes(fastify) {
                     status: result.status
                 })
                 if (!emailResult.sent) {
-                    request.log.warn({ orderId: result.orderId }, "Notificação por email não enviada: RESEND_API_KEY ausente.")
+                    request.log.warn({ orderId: result.orderId }, "Notificação por email não enviada: configuração RESEND_API_KEY ausente.")
                 }
             } catch (emailError) {
                 request.log.error({ orderId: result.orderId, message: emailError.message }, "Falha ao enviar email de novo pedido.")
