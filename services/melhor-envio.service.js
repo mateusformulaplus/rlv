@@ -4,6 +4,7 @@ import { readFileSync } from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { getPrismaClient } from "../lib/prisma.js"
+import { normalizeCalculationShipment } from "./shipping.service.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.resolve(__dirname, "../config/.env")
@@ -137,12 +138,13 @@ export async function exchangeMelhorEnvioCode(code, state) {
 // ---------------------------------------------------------------------------
 
 export async function calculateMelhorEnvioShipping(shipment) {
+    const normalizedShipment = normalizeCalculationShipment(shipment)
     const token = await getAccessToken()
 
     const shipmentWithOrigin = {
-        ...shipment,
-        from: shipment.from?.postal_code
-            ? shipment.from
+        ...normalizedShipment,
+        from: normalizedShipment.from?.postal_code
+            ? normalizedShipment.from
             : { postal_code: getMelhorEnvioOriginPostalCode() }
     }
 

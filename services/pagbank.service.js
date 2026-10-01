@@ -1,5 +1,6 @@
 import { apiPagBank, getPagBankPublicKey, getPagBankToken } from "../lib/axiso.js"
 import { saveOrder } from "./order.service.js"
+import { normalizeOrderShipping, validateShippingQuantity } from "./shipping.service.js"
 
 
 export function buildCheckoutPayload({
@@ -154,6 +155,7 @@ export function buildTransparentOrderPayload({
     cardHolder,
     installments = 1
 } = {}) {
+    const safeQuantity = validateShippingQuantity(quantity)
     const totalAmount = Math.round((Number(amount || 0) + Number(shippingAmount || 0)) * 100)
     const rawTaxId = String(customer.taxId || "").replace(/\D/g, "")
     const phoneDigits = String(customer.phone || customer.mobile || "11999999999").replace(/\D/g, "")
@@ -202,7 +204,7 @@ export function buildTransparentOrderPayload({
             {
                 reference_id: referenceId || `item-${Date.now()}`,
                 name: productName,
-                quantity: Number(quantity || 1),
+                quantity: safeQuantity,
                 unit_amount: Math.round(Number(amount || 0) * 100)
             }
         ],
@@ -275,6 +277,8 @@ export function extractPixDetails(order = {}) {
 }
 
 export async function createTransparentOrder(requestData = {}) {
+    const quantity = validateShippingQuantity(requestData.quantity ?? 1)
+    const shipping = normalizeOrderShipping(requestData.shipping || {}, quantity)
     if (!getPagBankToken()) {
         throw new Error("Token do PagBank não configurado")
     }
@@ -283,7 +287,7 @@ export async function createTransparentOrder(requestData = {}) {
     if (!customer.name || !customer.email || !isValidTaxId(customer.taxId)) {
         throw new Error("Nome, e-mail e CPF/CNPJ válido são obrigatórios")
     }
-    if (!requestData.shipping?.service || !requestData.shipping?.to?.postal_code) {
+    if (!shipping.service || !shipping.to?.postal_code) {
         throw new Error("Opção de envio e endereço de entrega são obrigatórios")
     }
 
@@ -291,7 +295,7 @@ export async function createTransparentOrder(requestData = {}) {
         const notificationUrl = requestData.notificationUrl
             || process.env.PAGBANK_WEBHOOK_URL
             || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
-        const payload = buildTransparentOrderPayload({ ...requestData, notificationUrl })
+        const payload = buildTransparentOrderPayload({ ...requestData, quantity, shipping, notificationUrl })
         const response = await apiPagBank.post("/orders", payload)
         const charge = response.data?.charges?.[0] || {}
         const pixDetails = extractPixDetails(response.data || {})
@@ -305,10 +309,10 @@ export async function createTransparentOrder(requestData = {}) {
             product: {
                 name: requestData.productName,
                 amount: Number(requestData.amount || 0),
-                quantity: Number(requestData.quantity || 1)
+                quantity
             },
             customer,
-            shipping: requestData.shipping,
+            shipping,
             shippingAmount: Number(requestData.shippingAmount || 0)
         })
 

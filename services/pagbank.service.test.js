@@ -89,3 +89,12 @@ test("extracts Pix QR code from charge qr_code response", () => {
         qrCodeImage: "https://example.test/charge.png"
     })
 })
+
+test("validates order quantity before building the PagBank payload", () => {
+    const payload = buildTransparentOrderPayload({ quantity: 6 })
+    assert.equal(payload.items[0].quantity, 6)
+
+    for (const quantity of [0, -1, 1.5, 101, Number.NaN]) {
+        assert.throws(() => buildTransparentOrderPayload({ quantity }), /quantidade/i)
+    }
+})

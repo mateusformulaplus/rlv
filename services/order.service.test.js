@@ -61,6 +61,7 @@ test("maps PagBank orders into the expedition dashboard record", () => {
   assert.equal(pedido.frete, "Correios - PAC")
   assert.equal(pedido.valorFrete, 15.5)
   assert.equal(pedido.statusExpedicao, "Etiqueta disponível")
+  assert.equal(pedido.peso, "0.0422 kg")
   assert.equal(pedido.codigoRastreio, "BR123456789")
   assert.equal(pedido.etiquetaDisponivel, true)
   assert.equal(pedido.dimensoes, "10x12x16 cm")
@@ -141,7 +142,7 @@ test("maps PagBank charge and Melhor Envio volume details", async () => {
   assert.equal(details.chargeId, "CHAR-123")
   assert.equal(details.paidAt, "2026-09-30T17:05:00.000Z")
   assert.equal(details.paidAmount, 125)
-  assert.deepEqual(details.shipping.volumes[0], { width: 12, height: 2, length: 17, weight: 0.5 })
+  assert.deepEqual(details.shipping.volumes[0], { width: 12, height: 2, length: 17, weight: 0.0211 })
   assert.equal(details.melhorEnvio.trackingCode, "BR123456789")
 })
 

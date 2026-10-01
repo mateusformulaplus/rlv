@@ -1,4 +1,5 @@
 import { getPrismaClient } from "../lib/prisma.js"
+import { normalizeOrderShipping, validateShippingQuantity } from "./shipping.service.js"
 import {
 	buyMelhorEnvioShipment,
 	createMelhorEnvioShipment,
@@ -21,9 +22,10 @@ function toOrder(record) {
 }
 
 export function toExpedicaoPedidoData(order) {
-	const shipping = order.shipping || {}
-	const address = shipping.to || {}
 	const product = order.product || {}
+	const quantity = validateShippingQuantity(product.quantity ?? order.quantity ?? 1)
+	const shipping = normalizeOrderShipping(order.shipping || {}, quantity)
+	const address = shipping.to || {}
 	const volume = shipping.volumes?.[0] || {}
 	const paymentStatus = String(order.status || "").toLowerCase()
 	const paidStatuses = new Set(["paid", "authorized", "fulfilled", "shipment_created", "shipment_purchased"])
@@ -56,7 +58,7 @@ export function toExpedicaoPedidoData(order) {
 		clienteTelefone: order.customer?.phone || address.phone || null,
 		clienteEmail: order.customer?.email || null,
 		produtoNome: String(product.name || order.productName || "Produto sem nome"),
-		produtoQuantidade: Math.max(1, Number(product.quantity || order.quantity || 1)),
+		produtoQuantidade: quantity,
 		enderecoRua: String(street),
 		enderecoNumero: String(number),
 		enderecoBairro: String(district),
@@ -81,10 +83,11 @@ export function toExpedicaoPedidoData(order) {
 export function toExpedicaoOrderDetails(order) {
 	if (!order) return null
 
+	const quantity = validateShippingQuantity(order.product?.quantity ?? order.quantity ?? 1)
 	const charges = Array.isArray(order.pagbank?.charges) ? order.pagbank.charges : []
 	const paidCharge = charges.find((charge) => String(charge.status).toUpperCase() === "PAID")
 	const charge = paidCharge || charges[0] || {}
-	const shipping = order.shipping || {}
+	const shipping = normalizeOrderShipping(order.shipping || {}, quantity)
 	const tracking = order.tracking || {}
 	const amountInCents = Number(charge.amount?.value)
 
