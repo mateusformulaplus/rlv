@@ -38,10 +38,29 @@ test("does not send a tracking email without the customer's address", async () =
 
 test("sends tracking notifications to the configured Resend account", () => {
   const originalRecipient = process.env.RESEND_TO_EMAIL
+  const originalSender = process.env.RESEND_FROM_EMAIL
   process.env.RESEND_TO_EMAIL = "expedicao@example.com"
+  process.env.RESEND_FROM_EMAIL = "envios@rlv.example"
 
   try {
     assert.equal(resolveTrackingRecipient({ email: "customer@example.com" }), "expedicao@example.com")
+  } finally {
+    if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
+    else process.env.RESEND_TO_EMAIL = originalRecipient
+    if (originalSender === undefined) delete process.env.RESEND_FROM_EMAIL
+    else process.env.RESEND_FROM_EMAIL = originalSender
+  }
+})
+
+test("uses the Resend account owner when using the test sender", () => {
+  const originalRecipient = process.env.RESEND_TO_EMAIL
+  process.env.RESEND_TO_EMAIL = "old-render-address@example.com"
+
+  try {
+    assert.equal(
+      resolveTrackingRecipient({ email: "customer@example.com" }, "onboarding@resend.dev"),
+      "expedicao@formulaplus.com.br"
+    )
   } finally {
     if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
     else process.env.RESEND_TO_EMAIL = originalRecipient
