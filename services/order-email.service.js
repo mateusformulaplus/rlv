@@ -72,40 +72,64 @@ export async function sendOrderNotification(order) {
   return { sent: Boolean(data?.id), id: data?.id || null }
 }
 
+export function buildTrackingEmail({ orderId, customer = {}, shipping = {}, trackingCode }) {
+  const customerName = customer.name || "Cliente"
+  const customerEmail = customer.email || "Não informado"
+  const carrier = shipping.serviceName || "transportadora"
+  return {
+    subject: `Rastreio do pedido ${orderId} - RLV Fórmulas`,
+    text: [
+      "O pedido foi marcado como enviado.",
+      `Pedido: ${orderId}`,
+      `Cliente: ${customerName}`,
+      `Email do cliente: ${customerEmail}`,
+      `Transportadora: ${carrier}`,
+      `Código de rastreio: ${trackingCode}`
+    ].join("\n"),
+    html: `
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0;background:#f1f6f3;font-family:Arial,sans-serif;color:#202923">
+        <tr><td align="center" style="padding:32px 14px">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dce8e1;border-radius:8px;overflow:hidden">
+            <tr><td style="padding:22px 28px;background:#006c47;color:#ffffff">
+              <div style="font-size:12px;font-weight:bold;letter-spacing:2px">RLV FÓRMULAS</div>
+              <div style="margin-top:5px;font-size:20px;font-weight:bold">Seu pedido foi enviado</div>
+            </td></tr>
+            <tr><td style="padding:26px 28px 30px;line-height:1.6">
+              <p style="margin:0 0 18px">Um pedido foi marcado como enviado. Seguem os dados para acompanhamento.</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 18px;background:#f2fbf6;border:1px solid #cce9d9;border-radius:6px">
+                <tr><td style="padding:15px 17px">
+                  <div style="color:#426253;font-size:12px">CÓDIGO DE RASTREIO</div>
+                  <div style="margin-top:5px;color:#006c47;font-size:21px;font-weight:bold;letter-spacing:1px">${escapeHtml(trackingCode)}</div>
+                </td></tr>
+              </table>
+              <p style="margin:0;color:#53665b;font-size:14px"><strong style="color:#263b30">Pedido:</strong> ${escapeHtml(orderId)}<br>
+              <strong style="color:#263b30">Cliente:</strong> ${escapeHtml(customerName)} (${escapeHtml(customerEmail)})<br>
+              <strong style="color:#263b30">Transportadora:</strong> ${escapeHtml(carrier)}</p>
+            </td></tr>
+            <tr><td style="padding:14px 28px;background:#e8f5ed;color:#426253;font-size:12px">RLV Fórmulas · Cuidado em cada etapa do seu pedido.</td></tr>
+          </table>
+        </td></tr>
+      </table>
+    `
+  }
+}
+
+export function resolveTrackingRecipient(customer = {}) {
+  return String(process.env.RESEND_TO_EMAIL || customer.email || "").trim()
+}
+
 export async function sendTrackingNotification({ orderId, customer = {}, shipping = {}, trackingCode }) {
-  const recipient = String(customer.email || "").trim()
-  if (!recipient) return { sent: false, reason: "missing_customer_email" }
+  const recipient = resolveTrackingRecipient(customer)
+  if (!recipient) return { sent: false, reason: "missing_recipient" }
 
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { sent: false, reason: "not_configured" }
   const sender = String(process.env.RESEND_FROM_EMAIL || "").trim()
   if (!sender) return { sent: false, reason: "sender_not_configured" }
 
-  const customerName = customer.name || "Cliente"
-  const carrier = shipping.serviceName || "transportadora"
+  const email = buildTrackingEmail({ orderId, customer, shipping, trackingCode })
   const resend = new Resend(apiKey)
-  const { data, error } = await resend.emails.send({
-    from: sender,
-    to: recipient,
-    subject: `Seu pedido ${orderId} foi enviado`,
-    text: [
-      `Olá, ${customerName}!`,
-      "Seu pedido foi enviado.",
-      `Pedido: ${orderId}`,
-      `Transportadora: ${carrier}`,
-      `Código de rastreio: ${trackingCode}`
-    ].join("\n"),
-    html: `
-      <main style="font-family:Arial,sans-serif;color:#202923;line-height:1.6;max-width:600px;margin:0 auto">
-        <h1 style="font-size:22px">Seu pedido foi enviado</h1>
-        <p>Olá, ${escapeHtml(customerName)}. Seu pedido já está a caminho.</p>
-        <p><strong>Pedido:</strong> ${escapeHtml(orderId)}<br>
-        <strong>Transportadora:</strong> ${escapeHtml(carrier)}</p>
-        <p><strong>Código de rastreio:</strong><br>
-        <span style="font-size:20px;font-weight:bold;letter-spacing:1px">${escapeHtml(trackingCode)}</span></p>
-      </main>
-    `
-  })
+  const { data, error } = await resend.emails.send({ from: sender, to: recipient, ...email })
 
   if (error) throw new Error(error.message || "O Resend não conseguiu enviar o email de rastreio.")
   return { sent: Boolean(data?.id), id: data?.id || null }

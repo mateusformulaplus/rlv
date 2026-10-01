@@ -218,26 +218,22 @@ export default async function expedicaoRoutes(fastify, options = {}) {
     if (!order) {
       return reply.code(404).send({ success: false, message: "Pedido PagBank não encontrado." })
     }
-    const recipient = order.customer?.email || pedido.cliente?.email
-    if (!recipient) {
-      return reply.code(400).send({ success: false, message: "Este pedido não possui e-mail de cliente cadastrado." })
-    }
-
     const savedOrder = await saveOrder({ ...order, trackingCode })
     let email
     try {
       email = await sendTrackingNotification({
         orderId: savedOrder.referenceId || savedOrder.pagbankOrderId,
-        customer: { ...savedOrder.customer, email: recipient },
+        customer: { ...savedOrder.customer, email: savedOrder.customer?.email || pedido.cliente?.email },
         shipping: savedOrder.shipping,
         trackingCode
       })
-    } catch {
-      request.log.error("Falha ao enviar e-mail de rastreio pelo Resend.")
+    } catch (error) {
+      const resendError = error instanceof Error ? error.message : "Resposta inválida do Resend."
+      request.log.error({ message: resendError }, "Falha ao enviar e-mail de rastreio pelo Resend.")
       return reply.code(502).send({
         success: false,
         trackingCodeSaved: true,
-        message: "Código salvo, mas o e-mail falhou. Confira o Resend e tente enviar novamente."
+        message: `Código salvo, mas o Resend recusou o e-mail: ${resendError}`
       })
     }
 

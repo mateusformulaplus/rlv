@@ -1,7 +1,7 @@
 export const PRODUCT_UNIT_WEIGHT_KG = 0.0211
 export const MAX_SHIPPING_QUANTITY = 100
 
-const DEFAULT_DIMENSIONS_CM = { width: 12, height: 2, length: 17 }
+const DEFAULT_DIMENSIONS_CM = { width: 12, height: 3, length: 17 }
 const KIT_QUANTITIES = { "kit-1": 1, "kit-2": 2, "kit-3": 3, "kit-4": 6 }
 
 export function validateShippingQuantity(value = 1) {
@@ -39,7 +39,7 @@ export function correctLegacyPackageWeight(weight, quantity) {
 }
 
 export function correctLegacyPackageDimensions(dimensions, quantity) {
-  if (String(dimensions || "").trim() !== "12x2x17 cm") return dimensions
+  if (!["12x2x17 cm", "10x2x15 cm"].includes(String(dimensions || "").trim())) return dimensions
   const packageDimensions = getPackageDimensions(quantity)
   return `${packageDimensions.width}x${packageDimensions.height}x${packageDimensions.length} cm`
 }
@@ -69,12 +69,7 @@ export function normalizeOrderShipping(shipping = {}, quantity = 1) {
   const safeQuantity = validateShippingQuantity(quantity)
   const inputVolumes = Array.isArray(shipping.volumes) ? shipping.volumes : []
   const firstVolume = inputVolumes[0] || {}
-  const firstProduct = Array.isArray(shipping.products) ? shipping.products[0] || {} : {}
-  const unitDimensions = {
-    width: dimension(firstProduct.width, firstVolume.width || DEFAULT_DIMENSIONS_CM.width),
-    height: dimension(firstProduct.height, firstVolume.height || DEFAULT_DIMENSIONS_CM.height),
-    length: dimension(firstProduct.length, firstVolume.length || DEFAULT_DIMENSIONS_CM.length)
-  }
+  const unitDimensions = DEFAULT_DIMENSIONS_CM
   const volume = {
     weight: getPackageWeight(safeQuantity),
     ...getPackageDimensions(safeQuantity, unitDimensions)

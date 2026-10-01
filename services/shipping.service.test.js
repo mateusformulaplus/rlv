@@ -19,10 +19,10 @@ test("calculates package weight from the unit weight and kit quantity", () => {
 
 test("calculates compact package dimensions for every kit", () => {
   for (const [quantity, expected] of [
-    [1, { width: 12, height: 2, length: 17 }],
-    [2, { width: 24, height: 2, length: 17 }],
-    [3, { width: 24, height: 2, length: 34 }],
-    [6, { width: 36, height: 2, length: 34 }]
+    [1, { width: 12, height: 3, length: 17 }],
+    [2, { width: 24, height: 3, length: 17 }],
+    [3, { width: 24, height: 3, length: 34 }],
+    [6, { width: 36, height: 3, length: 34 }]
   ]) {
     assert.deepEqual(getPackageDimensions(quantity), expected)
   }
@@ -32,7 +32,7 @@ test("restores known kit quantities and fixes old list values", () => {
   assert.equal(resolveShippingQuantity(1, "kit-3"), 3)
   assert.equal(resolveShippingQuantity(1, "kit-4"), 6)
   assert.equal(correctLegacyPackageWeight("0.0211 kg", 6), "0.1266 kg")
-  assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "36x2x34 cm")
+  assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "36x3x34 cm")
 })
 
 test("rejects non-integer, non-finite, zero, negative and excessive quantities", () => {
@@ -55,7 +55,7 @@ test("normalizes quote weight per item and corrects legacy fixed parcel weight",
     quantity: 3,
     weight: 0.0211,
     width: 12,
-    height: 2,
+    height: 3,
     length: 17
   })
   assert.equal(orderShipping.products[0].weight, 0.0211)
