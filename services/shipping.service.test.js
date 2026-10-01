@@ -1,10 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  correctLegacyPackageDimensions,
+  correctLegacyPackageWeight,
+  getPackageDimensions,
   getPackageWeight,
   normalizeCalculationShipment,
   normalizeOrderShipping,
-  correctLegacyPackageWeight,
+  resolveShippingQuantity,
   validateShippingQuantity
 } from "./shipping.service.js"
 
@@ -12,6 +15,24 @@ test("calculates package weight from the unit weight and kit quantity", () => {
   for (const [quantity, expectedWeight] of [[1, 0.0211], [2, 0.0422], [3, 0.0633], [6, 0.1266]]) {
     assert.equal(getPackageWeight(quantity), expectedWeight)
   }
+})
+
+test("calculates compact package dimensions for every kit", () => {
+  for (const [quantity, expected] of [
+    [1, { width: 12, height: 2, length: 17 }],
+    [2, { width: 24, height: 2, length: 17 }],
+    [3, { width: 24, height: 2, length: 34 }],
+    [6, { width: 36, height: 2, length: 34 }]
+  ]) {
+    assert.deepEqual(getPackageDimensions(quantity), expected)
+  }
+})
+
+test("restores known kit quantities and fixes old list values", () => {
+  assert.equal(resolveShippingQuantity(1, "kit-3"), 3)
+  assert.equal(resolveShippingQuantity(1, "kit-4"), 6)
+  assert.equal(correctLegacyPackageWeight("0.0211 kg", 6), "0.1266 kg")
+  assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "36x2x34 cm")
 })
 
 test("rejects non-integer, non-finite, zero, negative and excessive quantities", () => {

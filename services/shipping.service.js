@@ -2,6 +2,7 @@ export const PRODUCT_UNIT_WEIGHT_KG = 0.0211
 export const MAX_SHIPPING_QUANTITY = 100
 
 const DEFAULT_DIMENSIONS_CM = { width: 12, height: 2, length: 17 }
+const KIT_QUANTITIES = { "kit-1": 1, "kit-2": 2, "kit-3": 3, "kit-4": 6 }
 
 export function validateShippingQuantity(value = 1) {
   const quantity = Number(value)
@@ -11,14 +12,36 @@ export function validateShippingQuantity(value = 1) {
   return quantity
 }
 
+export function resolveShippingQuantity(quantity, referenceId) {
+  return KIT_QUANTITIES[String(referenceId || "").toLowerCase()] || validateShippingQuantity(quantity)
+}
+
 export function getPackageWeight(quantity) {
   const safeQuantity = validateShippingQuantity(quantity)
   return Number((PRODUCT_UNIT_WEIGHT_KG * safeQuantity).toFixed(4))
 }
 
+export function getPackageDimensions(quantity, unitDimensions = DEFAULT_DIMENSIONS_CM) {
+  const safeQuantity = validateShippingQuantity(quantity)
+  const columns = Math.ceil(Math.sqrt(safeQuantity))
+  const rows = Math.ceil(safeQuantity / columns)
+
+  return {
+    width: dimension(unitDimensions.width, DEFAULT_DIMENSIONS_CM.width) * columns,
+    height: dimension(unitDimensions.height, DEFAULT_DIMENSIONS_CM.height),
+    length: dimension(unitDimensions.length, DEFAULT_DIMENSIONS_CM.length) * rows
+  }
+}
+
 export function correctLegacyPackageWeight(weight, quantity) {
-  if (String(weight || "").trim() !== "0.5 kg") return weight
+  if (!["0.5 kg", `${PRODUCT_UNIT_WEIGHT_KG} kg`].includes(String(weight || "").trim())) return weight
   return `${getPackageWeight(quantity)} kg`
+}
+
+export function correctLegacyPackageDimensions(dimensions, quantity) {
+  if (String(dimensions || "").trim() !== "12x2x17 cm") return dimensions
+  const packageDimensions = getPackageDimensions(quantity)
+  return `${packageDimensions.width}x${packageDimensions.height}x${packageDimensions.length} cm`
 }
 
 function dimension(value, fallback) {
@@ -46,11 +69,15 @@ export function normalizeOrderShipping(shipping = {}, quantity = 1) {
   const safeQuantity = validateShippingQuantity(quantity)
   const inputVolumes = Array.isArray(shipping.volumes) ? shipping.volumes : []
   const firstVolume = inputVolumes[0] || {}
+  const firstProduct = Array.isArray(shipping.products) ? shipping.products[0] || {} : {}
+  const unitDimensions = {
+    width: dimension(firstProduct.width, firstVolume.width || DEFAULT_DIMENSIONS_CM.width),
+    height: dimension(firstProduct.height, firstVolume.height || DEFAULT_DIMENSIONS_CM.height),
+    length: dimension(firstProduct.length, firstVolume.length || DEFAULT_DIMENSIONS_CM.length)
+  }
   const volume = {
     weight: getPackageWeight(safeQuantity),
-    width: dimension(firstVolume.width, DEFAULT_DIMENSIONS_CM.width),
-    height: dimension(firstVolume.height, DEFAULT_DIMENSIONS_CM.height),
-    length: dimension(firstVolume.length, DEFAULT_DIMENSIONS_CM.length)
+    ...getPackageDimensions(safeQuantity, unitDimensions)
   }
 
   return {
@@ -59,7 +86,8 @@ export function normalizeOrderShipping(shipping = {}, quantity = 1) {
       ? shipping.products.map((product) => ({
           ...product,
           quantity: safeQuantity,
-          weight: PRODUCT_UNIT_WEIGHT_KG
+          weight: PRODUCT_UNIT_WEIGHT_KG,
+          ...unitDimensions
         }))
       : [],
     volumes: [volume]

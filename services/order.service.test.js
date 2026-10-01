@@ -64,13 +64,27 @@ test("maps PagBank orders into the expedition dashboard record", () => {
   assert.equal(pedido.peso, "0.0422 kg")
   assert.equal(pedido.codigoRastreio, "BR123456789")
   assert.equal(pedido.etiquetaDisponivel, true)
-  assert.equal(pedido.dimensoes, "10x12x16 cm")
+  assert.equal(pedido.dimensoes, "20x12x16 cm")
 
   const legacyOrder = toExpedicaoPedidoData({
     pagbankOrderId: "ORDER-LEGACY",
     shipping: { service: 3 }
   })
   assert.equal(legacyOrder.frete, "Serviço 3")
+})
+
+test("restores the physical quantity for older kit orders", () => {
+  const pedido = toExpedicaoPedidoData({
+    pagbankOrderId: "ORDER-KIT-4",
+    referenceId: "kit-4",
+    status: "paid",
+    product: { name: "Pague 4 Leve 6", quantity: 1 },
+    shipping: { volumes: [{ width: 12, height: 2, length: 17, weight: 0.0211 }] }
+  })
+
+  assert.equal(pedido.produtoQuantidade, 6)
+  assert.equal(pedido.peso, "0.1266 kg")
+  assert.equal(pedido.dimensoes, "36x2x34 cm")
 })
 
 test("saves PagBank and expedition records in one transaction", async () => {

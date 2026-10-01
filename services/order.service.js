@@ -1,5 +1,5 @@
 import { getPrismaClient } from "../lib/prisma.js"
-import { normalizeOrderShipping, validateShippingQuantity } from "./shipping.service.js"
+import { normalizeOrderShipping, resolveShippingQuantity } from "./shipping.service.js"
 import {
 	buyMelhorEnvioShipment,
 	createMelhorEnvioShipment,
@@ -23,7 +23,7 @@ function toOrder(record) {
 
 export function toExpedicaoPedidoData(order) {
 	const product = order.product || {}
-	const quantity = validateShippingQuantity(product.quantity ?? order.quantity ?? 1)
+	const quantity = resolveShippingQuantity(product.quantity ?? order.quantity ?? 1, order.referenceId)
 	const shipping = normalizeOrderShipping(order.shipping || {}, quantity)
 	const address = shipping.to || {}
 	const volume = shipping.volumes?.[0] || {}
@@ -83,7 +83,7 @@ export function toExpedicaoPedidoData(order) {
 export function toExpedicaoOrderDetails(order) {
 	if (!order) return null
 
-	const quantity = validateShippingQuantity(order.product?.quantity ?? order.quantity ?? 1)
+	const quantity = resolveShippingQuantity(order.product?.quantity ?? order.quantity ?? 1, order.referenceId)
 	const charges = Array.isArray(order.pagbank?.charges) ? order.pagbank.charges : []
 	const paidCharge = charges.find((charge) => String(charge.status).toUpperCase() === "PAID")
 	const charge = paidCharge || charges[0] || {}

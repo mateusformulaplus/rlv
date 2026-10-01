@@ -1,6 +1,6 @@
 import { apiPagBank, getPagBankPublicKey, getPagBankToken } from "../lib/axiso.js"
 import { saveOrder } from "./order.service.js"
-import { normalizeOrderShipping, validateShippingQuantity } from "./shipping.service.js"
+import { normalizeOrderShipping, resolveShippingQuantity } from "./shipping.service.js"
 
 
 export function buildCheckoutPayload({
@@ -155,7 +155,7 @@ export function buildTransparentOrderPayload({
     cardHolder,
     installments = 1
 } = {}) {
-    const safeQuantity = validateShippingQuantity(quantity)
+    const safeQuantity = resolveShippingQuantity(quantity, referenceId)
     const totalAmount = Math.round((Number(amount || 0) + Number(shippingAmount || 0)) * 100)
     const rawTaxId = String(customer.taxId || "").replace(/\D/g, "")
     const phoneDigits = String(customer.phone || customer.mobile || "11999999999").replace(/\D/g, "")
@@ -204,7 +204,7 @@ export function buildTransparentOrderPayload({
             {
                 reference_id: referenceId || `item-${Date.now()}`,
                 name: productName,
-                quantity: safeQuantity,
+                quantity: 1,
                 unit_amount: Math.round(Number(amount || 0) * 100)
             }
         ],
@@ -277,7 +277,7 @@ export function extractPixDetails(order = {}) {
 }
 
 export async function createTransparentOrder(requestData = {}) {
-    const quantity = validateShippingQuantity(requestData.quantity ?? 1)
+    const quantity = resolveShippingQuantity(requestData.quantity ?? 1, requestData.referenceId)
     const shipping = normalizeOrderShipping(requestData.shipping || {}, quantity)
     if (!getPagBankToken()) {
         throw new Error("Token do PagBank não configurado")

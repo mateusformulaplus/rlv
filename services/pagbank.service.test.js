@@ -90,11 +90,15 @@ test("extracts Pix QR code from charge qr_code response", () => {
     })
 })
 
-test("validates order quantity before building the PagBank payload", () => {
+test("keeps kit pricing intact while validating the actual shipping quantity", () => {
     const payload = buildTransparentOrderPayload({ quantity: 6 })
-    assert.equal(payload.items[0].quantity, 6)
+    assert.equal(payload.items[0].quantity, 1)
 
     for (const quantity of [0, -1, 1.5, 101, Number.NaN]) {
         assert.throws(() => buildTransparentOrderPayload({ quantity }), /quantidade/i)
     }
+
+    const legacyKitPayload = buildTransparentOrderPayload({ quantity: 1, referenceId: "kit-4", amount: 306 })
+    assert.equal(legacyKitPayload.items[0].quantity, 1)
+    assert.equal(legacyKitPayload.items[0].unit_amount, 30600)
 })
