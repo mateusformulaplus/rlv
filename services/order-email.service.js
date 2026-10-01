@@ -71,3 +71,42 @@ export async function sendOrderNotification(order) {
   if (error) throw new Error(error.message || "O Resend não conseguiu enviar o email.")
   return { sent: Boolean(data?.id), id: data?.id || null }
 }
+
+export async function sendTrackingNotification({ orderId, customer = {}, shipping = {}, trackingCode }) {
+  const recipient = String(customer.email || "").trim()
+  if (!recipient) return { sent: false, reason: "missing_customer_email" }
+
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) return { sent: false, reason: "not_configured" }
+  const sender = String(process.env.RESEND_FROM_EMAIL || "").trim()
+  if (!sender) return { sent: false, reason: "sender_not_configured" }
+
+  const customerName = customer.name || "Cliente"
+  const carrier = shipping.serviceName || "transportadora"
+  const resend = new Resend(apiKey)
+  const { data, error } = await resend.emails.send({
+    from: sender,
+    to: recipient,
+    subject: `Seu pedido ${orderId} foi enviado`,
+    text: [
+      `Olá, ${customerName}!`,
+      "Seu pedido foi enviado.",
+      `Pedido: ${orderId}`,
+      `Transportadora: ${carrier}`,
+      `Código de rastreio: ${trackingCode}`
+    ].join("\n"),
+    html: `
+      <main style="font-family:Arial,sans-serif;color:#202923;line-height:1.6;max-width:600px;margin:0 auto">
+        <h1 style="font-size:22px">Seu pedido foi enviado</h1>
+        <p>Olá, ${escapeHtml(customerName)}. Seu pedido já está a caminho.</p>
+        <p><strong>Pedido:</strong> ${escapeHtml(orderId)}<br>
+        <strong>Transportadora:</strong> ${escapeHtml(carrier)}</p>
+        <p><strong>Código de rastreio:</strong><br>
+        <span style="font-size:20px;font-weight:bold;letter-spacing:1px">${escapeHtml(trackingCode)}</span></p>
+      </main>
+    `
+  })
+
+  if (error) throw new Error(error.message || "O Resend não conseguiu enviar o email de rastreio.")
+  return { sent: Boolean(data?.id), id: data?.id || null }
+}

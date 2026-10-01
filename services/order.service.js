@@ -78,10 +78,65 @@ export function toExpedicaoPedidoData(order) {
 	}
 }
 
+export function toExpedicaoOrderDetails(order) {
+	if (!order) return null
+
+	const charges = Array.isArray(order.pagbank?.charges) ? order.pagbank.charges : []
+	const paidCharge = charges.find((charge) => String(charge.status).toUpperCase() === "PAID")
+	const charge = paidCharge || charges[0] || {}
+	const shipping = order.shipping || {}
+	const tracking = order.tracking || {}
+	const amountInCents = Number(charge.amount?.value)
+
+	return {
+		transactionId: order.pagbankOrderId,
+		referenceId: order.referenceId || null,
+		orderStatus: order.status || null,
+		createdAt: order.createdAt || null,
+		chargeId: charge.id || order.pagbankChargeId || null,
+		paymentStatus: charge.status || order.status || null,
+		paymentMethod: charge.payment_method?.type || order.paymentMethod || null,
+		paidAt: paidCharge?.paid_at || null,
+		paidAmount: Number.isFinite(amountInCents) ? amountInCents / 100 : null,
+		product: {
+			name: order.product?.name || order.productName || null,
+			quantity: Number(order.product?.quantity || order.quantity || 1),
+			unitAmount: Number(order.product?.amount || 0)
+		},
+		customer: {
+			name: order.customer?.name || null,
+			email: order.customer?.email || null,
+			phone: order.customer?.phone || order.customer?.mobile || null
+		},
+		shipping: {
+			serviceName: shipping.serviceName || (shipping.service ? `Serviço ${shipping.service}` : null),
+			serviceId: shipping.service || null,
+			amount: Number(order.shippingAmount || 0),
+			address: shipping.to || {},
+			volumes: Array.isArray(shipping.volumes) ? shipping.volumes : []
+		},
+		melhorEnvio: {
+			shipmentId: order.melhorEnvioShipmentId || null,
+			purchased: Boolean(order.melhorEnvioPurchased),
+			labelAvailable: Boolean(order.melhorEnvioLabel?.data || order.melhorEnvioLabelUrl),
+			trackingCode: order.trackingCode || tracking.tracking || tracking.tracking_code || null,
+			status: tracking.status || order.melhorEnvioShipment?.status || null
+		}
+	}
+}
+
 export async function syncOrderToExpedicao(order, prisma = getPrismaClient()) {
 	if (!order.pagbankOrderId) return
 
 	const pedido = toExpedicaoPedidoData(order)
+	const existingOrder = await prisma.expedicaoPedido.findUnique({
+		where: { pagbankOrderId: pedido.pagbankOrderId },
+		select: { statusExpedicao: true }
+	})
+	if (existingOrder?.statusExpedicao === "Enviado") {
+		pedido.statusExpedicao = "Enviado"
+	}
+
 	const conflictingCode = await prisma.expedicaoPedido.findUnique({ where: { codigoPedido: pedido.codigoPedido } })
 	if (conflictingCode && conflictingCode.pagbankOrderId !== pedido.pagbankOrderId) {
 		pedido.codigoPedido = `${pedido.codigoPedido}-${pedido.pagbankOrderId.slice(-6)}`

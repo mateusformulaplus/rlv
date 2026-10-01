@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs"
-import { getExpedicaoSummary, listPedidos, savePedidoWebhook } from "../lib/expedicao-store.js"
-import { findOrderByPagBankId, syncExistingOrdersToExpedicao } from "../services/order.service.js"
+import { findPedidoByPagBankId, getExpedicaoSummary, listPedidos, markPedidoAsSent, savePedidoWebhook } from "../lib/expedicao-store.js"
+import { findOrderByPagBankId, saveOrder, syncExistingOrdersToExpedicao, toExpedicaoOrderDetails } from "../services/order.service.js"
+import { sendTrackingNotification } from "../services/order-email.service.js"
 import { userRepository } from "../services/user.service.js"
 
 const SESSION_COOKIE = "expedicao_token"
@@ -167,6 +168,89 @@ export default async function expedicaoRoutes(fastify, options = {}) {
       total: result.total,
       totalPages: result.totalPages
     })
+  })
+
+  fastify.get("/api/expedicao/pedidos/:pagbankOrderId/detalhes", async (request, reply) => {
+    if (!(await requireAuthentication(fastify, request, reply, repository))) return
+
+    const order = await findOrderByPagBankId(request.params.pagbankOrderId)
+    if (!order) {
+      return reply.code(404).send({ success: false, message: "Detalhes do pedido não encontrados." })
+    }
+
+    return reply.send({ success: true, detalhes: toExpedicaoOrderDetails(order) })
+  })
+
+  fastify.patch("/api/expedicao/pedidos/:pagbankOrderId/status", async (request, reply) => {
+    if (!(await requireAuthentication(fastify, request, reply, repository))) return
+    if (request.body?.status !== "Enviado") {
+      return reply.code(400).send({ success: false, message: "Status de expedição inválido." })
+    }
+
+    const pedido = await markPedidoAsSent(request.params.pagbankOrderId)
+    if (!pedido) {
+      return reply.code(404).send({ success: false, message: "Pedido não encontrado na expedição." })
+    }
+    if (!pedido.updated) {
+      return reply.code(409).send({ success: false, message: "Confirme o pagamento antes de marcar o envio." })
+    }
+
+    return reply.send({ success: true, pedido: pedido.pedido })
+  })
+
+  fastify.post("/api/expedicao/pedidos/:pagbankOrderId/rastreio", async (request, reply) => {
+    if (!(await requireAuthentication(fastify, request, reply, repository))) return
+
+    const trackingCode = String(request.body?.trackingCode || "").trim()
+    if (trackingCode.length < 3 || trackingCode.length > 100) {
+      return reply.code(400).send({ success: false, message: "Informe um código de rastreio válido." })
+    }
+
+    const pedido = await findPedidoByPagBankId(request.params.pagbankOrderId)
+    if (!pedido) {
+      return reply.code(404).send({ success: false, message: "Pedido não encontrado na expedição." })
+    }
+    if (pedido.statusExpedicao !== "Enviado") {
+      return reply.code(409).send({ success: false, message: "Marque o pedido como enviado antes de enviar o rastreio." })
+    }
+
+    const order = await findOrderByPagBankId(request.params.pagbankOrderId)
+    if (!order) {
+      return reply.code(404).send({ success: false, message: "Pedido PagBank não encontrado." })
+    }
+    const recipient = order.customer?.email || pedido.cliente?.email
+    if (!recipient) {
+      return reply.code(400).send({ success: false, message: "Este pedido não possui e-mail de cliente cadastrado." })
+    }
+
+    const savedOrder = await saveOrder({ ...order, trackingCode })
+    let email
+    try {
+      email = await sendTrackingNotification({
+        orderId: savedOrder.referenceId || savedOrder.pagbankOrderId,
+        customer: { ...savedOrder.customer, email: recipient },
+        shipping: savedOrder.shipping,
+        trackingCode
+      })
+    } catch {
+      request.log.error("Falha ao enviar e-mail de rastreio pelo Resend.")
+      return reply.code(502).send({
+        success: false,
+        trackingCodeSaved: true,
+        message: "Código salvo, mas o e-mail falhou. Confira o Resend e tente enviar novamente."
+      })
+    }
+
+    if (!email.sent) {
+      const message = email.reason === "not_configured"
+        ? "Código salvo, mas RESEND_API_KEY não está configurada no servidor."
+        : email.reason === "sender_not_configured"
+          ? "Código salvo, mas configure um remetente verificado em RESEND_FROM_EMAIL."
+          : "Código salvo, mas não foi possível enviar o e-mail."
+      return reply.code(503).send({ success: false, trackingCodeSaved: true, message })
+    }
+
+    return reply.send({ success: true, trackingCode, emailSent: true })
   })
 
   fastify.get("/api/expedicao/resumo", async (request, reply) => {

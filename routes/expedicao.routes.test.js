@@ -5,6 +5,7 @@ import cookie from "@fastify/cookie"
 import jwt from "@fastify/jwt"
 import rateLimit from "@fastify/rate-limit"
 import bcrypt from "bcryptjs"
+import { markPedidoAsSent } from "../lib/expedicao-store.js"
 
 test("protects expedition routes with an HttpOnly JWT cookie", async () => {
   const { default: expedicaoRoutes } = await import("./expedicao.routes.js")
@@ -95,4 +96,40 @@ test("protects expedition routes with an HttpOnly JWT cookie", async () => {
   } finally {
     await app.close()
   }
+})
+
+test("marks only paid expedition orders as sent", async () => {
+  const paidOrder = {
+    id: "expedition-order-id",
+    codigoPedido: "KIT-123",
+    pagbankOrderId: "ORDER-123",
+    statusPagamento: "Pago",
+    statusExpedicao: "Aguardando envio",
+    createdAt: new Date("2026-09-30T17:00:00.000Z"),
+    updatedAt: new Date("2026-09-30T17:00:00.000Z")
+  }
+  let updateCount = 0
+  const prisma = {
+    expedicaoPedido: {
+      findUnique: async () => paidOrder,
+      update: async ({ data }) => {
+        updateCount += 1
+        return { ...paidOrder, ...data }
+      }
+    }
+  }
+
+  const result = await markPedidoAsSent("ORDER-123", prisma)
+  assert.equal(result.updated, true)
+  assert.equal(result.pedido.statusExpedicao, "Enviado")
+
+  const unpaidPrisma = {
+    expedicaoPedido: {
+      findUnique: async () => ({ ...paidOrder, statusPagamento: "Pendente" }),
+      update: async () => { updateCount += 1 }
+    }
+  }
+  const unpaidResult = await markPedidoAsSent("ORDER-123", unpaidPrisma)
+  assert.equal(unpaidResult.updated, false)
+  assert.equal(updateCount, 1)
 })

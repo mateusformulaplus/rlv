@@ -2,7 +2,10 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { saveOrder, toExpedicaoPedidoData } from "./order.service.js"
 
-function mockPrisma({ upsertExpedition = async ({ create }) => create } = {}) {
+function mockPrisma({
+  findExpedition = async () => null,
+  upsertExpedition = async ({ create }) => create
+} = {}) {
   const transaction = {
     order: {
       upsert: async ({ create }) => ({
@@ -12,7 +15,7 @@ function mockPrisma({ upsertExpedition = async ({ create }) => create } = {}) {
       })
     },
     expedicaoPedido: {
-      findUnique: async () => null,
+      findUnique: findExpedition,
       upsert: upsertExpedition
     }
   }
@@ -101,4 +104,58 @@ test("propagates expedition write failures so the transaction can roll back", as
     saveOrder({ pagbankOrderId: "ORDER-FAIL", status: "paid" }, prisma),
     /database unavailable/
   )
+})
+
+test("maps PagBank charge and Melhor Envio volume details", async () => {
+  const { toExpedicaoOrderDetails } = await import("./order.service.js")
+  const details = toExpedicaoOrderDetails({
+    pagbankOrderId: "ORDE-123",
+    referenceId: "KIT-123",
+    status: "fulfilled",
+    createdAt: "2026-09-30T17:00:00.000Z",
+    pagbankChargeId: "CHAR-123",
+    pagbank: {
+      charges: [{
+        id: "CHAR-123",
+        status: "PAID",
+        paid_at: "2026-09-30T17:05:00.000Z",
+        amount: { value: 12500 },
+        payment_method: { type: "PIX" }
+      }]
+    },
+    product: { name: "Kit RLV", quantity: 1, amount: 100 },
+    customer: { name: "Cliente Teste", email: "cliente@example.com" },
+    shippingAmount: 25,
+    shipping: {
+      service: 4,
+      serviceName: "Correios - PAC",
+      to: { postal_code: "24000-000" },
+      volumes: [{ width: 12, height: 2, length: 17, weight: 0.5 }]
+    },
+    melhorEnvioShipmentId: "SHIP-123",
+    melhorEnvioPurchased: true,
+    trackingCode: "BR123456789"
+  })
+
+  assert.equal(details.transactionId, "ORDE-123")
+  assert.equal(details.chargeId, "CHAR-123")
+  assert.equal(details.paidAt, "2026-09-30T17:05:00.000Z")
+  assert.equal(details.paidAmount, 125)
+  assert.deepEqual(details.shipping.volumes[0], { width: 12, height: 2, length: 17, weight: 0.5 })
+  assert.equal(details.melhorEnvio.trackingCode, "BR123456789")
+})
+
+test("keeps the manual sent status during PagBank and Melhor Envio sync", async () => {
+  let syncedRecord
+  const prisma = mockPrisma({
+    findExpedition: async ({ where }) => where.pagbankOrderId ? { statusExpedicao: "Enviado" } : null,
+    upsertExpedition: async (record) => {
+      syncedRecord = record
+      return record.create
+    }
+  })
+
+  await saveOrder({ pagbankOrderId: "ORDER-SENT", status: "fulfilled" }, prisma)
+
+  assert.equal(syncedRecord.update.statusExpedicao, "Enviado")
 })
