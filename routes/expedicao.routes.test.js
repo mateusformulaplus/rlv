@@ -81,6 +81,17 @@ test("protects expedition routes with an HttpOnly JWT cookie", async () => {
       headers: { cookie: "expedicao_token=invalid-token" }
     })
     assert.equal(invalidTokenResponse.statusCode, 401)
+
+    const legacyPassword = "legacy-plain-text-password"
+    adminUser.passwordHash = legacyPassword
+    const legacyLoginResponse = await app.inject({
+      method: "POST",
+      url: "/api/expedicao/login",
+      payload: { username: adminUser.username, password: legacyPassword }
+    })
+    assert.equal(legacyLoginResponse.statusCode, 200)
+    assert.notEqual(adminUser.passwordHash, legacyPassword)
+    assert.equal(await bcrypt.compare(legacyPassword, adminUser.passwordHash), true)
   } finally {
     await app.close()
   }

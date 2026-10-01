@@ -113,7 +113,13 @@ export default async function expedicaoRoutes(fastify, options = {}) {
     }
 
     const user = await repository.findByUsername(String(username).trim().toLowerCase())
-    if (!user?.active || !(await bcrypt.compare(String(password), user.passwordHash))) {
+    const passwordHash = String(user?.passwordHash || "")
+    const isBcryptHash = /^\$2[aby]\$\d{2}\$/.test(passwordHash)
+    const passwordMatches = isBcryptHash
+      ? await bcrypt.compare(String(password), passwordHash)
+      : passwordHash === String(password)
+
+    if (!user?.active || !passwordMatches) {
       return reply.code(401).send({ success: false, message: "Credenciais inválidas." })
     }
 
@@ -126,7 +132,10 @@ export default async function expedicaoRoutes(fastify, options = {}) {
       maxAge: 60 * 60 * 12
     })
 
-    const updatedUser = await repository.update(user.id, { lastLoginAt: new Date() })
+    const updatedUser = await repository.update(user.id, {
+      lastLoginAt: new Date(),
+      ...(!isBcryptHash ? { passwordHash: await bcrypt.hash(String(password), 12) } : {})
+    })
     return reply.send({ success: true, redirect: "/expedicao/resumo", user: publicUser(updatedUser) })
   })
 
