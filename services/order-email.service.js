@@ -1,5 +1,3 @@
-import { Resend } from "resend"
-
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -17,25 +15,53 @@ function formatCurrency(value) {
   })
 }
 
-const RESEND_TEST_SENDER = "onboarding@resend.dev"
-const RESEND_TEST_ACCOUNT_EMAIL = "expedicao@formulaplus.com.br"
+export function resolveTrackingRecipient(customer = {}) {
+  return String(process.env.EMAILJS_TRACKING_TO_EMAIL || customer.email || "").trim()
+}
 
-export function resolveTrackingRecipient(customer = {}, sender = process.env.RESEND_FROM_EMAIL || "") {
-  if (String(sender).trim().toLowerCase() === RESEND_TEST_SENDER) {
-    return RESEND_TEST_ACCOUNT_EMAIL
+function emailJsConfiguration(templateId) {
+  return {
+    serviceId: process.env.EMAILJS_SERVICE_ID,
+    templateId,
+    publicKey: process.env.EMAILJS_PUBLIC_KEY,
+    privateKey: process.env.EMAILJS_PRIVATE_KEY
   }
-  return String(process.env.RESEND_TO_EMAIL || customer.email || "").trim()
+}
+
+async function sendEmailJs(templateId, recipient, email, templateParams = {}) {
+  const config = emailJsConfiguration(templateId)
+  if (Object.values(config).some((value) => !String(value || "").trim())) {
+    return { sent: false, reason: "not_configured" }
+  }
+
+  const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id: config.serviceId,
+      template_id: config.templateId,
+      user_id: config.publicKey,
+      accessToken: config.privateKey,
+      template_params: {
+        to_email: recipient,
+        subject: email.subject,
+        message: email.text,
+        message_html: email.html,
+        ...templateParams
+      }
+    })
+  })
+
+  if (!response.ok) {
+    const detail = await response.text()
+    throw new Error(detail || "O EmailJS não conseguiu enviar o e-mail.")
+  }
+  return { sent: true, id: null }
 }
 
 export async function sendOrderNotification(order) {
   const customer = order.customer || {}
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) return { sent: false, reason: "not_configured" }
-
-  const sender = String(process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev").trim()
-  const recipient = sender.toLowerCase() === RESEND_TEST_SENDER
-    ? RESEND_TEST_ACCOUNT_EMAIL
-    : process.env.RESEND_TO_EMAIL || "expedicao@formaplusrj.com.br"
+  const recipient = String(process.env.EMAILJS_TO_EMAIL || "expedicao@formaplusrj.com.br").trim()
   const shipping = order.shipping || {}
   const address = shipping.to || {}
   const total = Number(order.amount || 0) + Number(order.shippingAmount || 0)
@@ -48,42 +74,37 @@ export async function sendOrderNotification(order) {
     [address.city, address.state_abbr].filter(Boolean).join(" / "),
     address.postal_code
   ].filter(Boolean)
-
-  const resend = new Resend(apiKey)
-  const { data, error } = await resend.emails.send({
-    from: sender,
-    to: recipient,
+  const text = [
+    "Novo pedido recebido",
+    `Pedido: ${orderId}`,
+    `Cliente: ${customer.name || "Não informado"}`,
+    `Email: ${customer.email || "Não informado"}`,
+    `Produto: ${productName} (${quantity} un.)`,
+    `Frete: ${shipping.service || "Não informado"}`,
+    `Endereço: ${addressLines.join(", ") || "Não informado"}`,
+    `Total do produto e frete: ${formatCurrency(total)}`,
+    `Pagamento: ${order.paymentMethod || "Não informado"} - ${order.status || "Aguardando confirmação"}`
+  ].join("\n")
+  const html = `
+    <main style="font-family:Arial,sans-serif;color:#202923;line-height:1.5;max-width:640px;margin:0 auto">
+      <h1 style="font-size:22px">Novo pedido recebido</h1>
+      <p><strong>Pedido:</strong> ${escapeHtml(orderId)}</p>
+      <p><strong>Status do pagamento:</strong> ${escapeHtml(order.status || "Aguardando confirmação")}</p>
+      <hr style="border:0;border-top:1px solid #dce4df;margin:20px 0">
+      <h2 style="font-size:17px">Cliente</h2>
+      <p>${escapeHtml(customer.name || "Não informado")}<br>${escapeHtml(customer.email || "Email não informado")}</p>
+      <h2 style="font-size:17px">Produto e envio</h2>
+      <p>${escapeHtml(productName)} · ${escapeHtml(quantity)} unidade(s)<br>Frete: ${escapeHtml(shipping.service || "Não informado")}</p>
+      <p>${addressLines.map(escapeHtml).join("<br>") || "Endereço não informado"}</p>
+      <p><strong>Total do produto e frete: ${escapeHtml(formatCurrency(total))}</strong></p>
+      <p>Pagamento: ${escapeHtml(order.paymentMethod || "Não informado")}</p>
+    </main>
+  `
+  return sendEmailJs(process.env.EMAILJS_ORDER_TEMPLATE_ID, recipient, {
     subject: `Novo pedido ${orderId} - ${customer.name || "Cliente"}`,
-    text: [
-      "Novo pedido recebido",
-      `Pedido: ${orderId}`,
-      `Cliente: ${customer.name || "Não informado"}`,
-      `Email: ${customer.email || "Não informado"}`,
-      `Produto: ${productName} (${quantity} un.)`,
-      `Frete: ${shipping.service || "Não informado"}`,
-      `Endereço: ${addressLines.join(", ") || "Não informado"}`,
-      `Total do produto e frete: ${formatCurrency(total)}`,
-      `Pagamento: ${order.paymentMethod || "Não informado"} - ${order.status || "Aguardando confirmação"}`
-    ].join("\n"),
-    html: `
-      <main style="font-family:Arial,sans-serif;color:#202923;line-height:1.5;max-width:640px;margin:0 auto">
-        <h1 style="font-size:22px">Novo pedido recebido</h1>
-        <p><strong>Pedido:</strong> ${escapeHtml(orderId)}</p>
-        <p><strong>Status do pagamento:</strong> ${escapeHtml(order.status || "Aguardando confirmação")}</p>
-        <hr style="border:0;border-top:1px solid #dce4df;margin:20px 0">
-        <h2 style="font-size:17px">Cliente</h2>
-        <p>${escapeHtml(customer.name || "Não informado")}<br>${escapeHtml(customer.email || "Email não informado")}</p>
-        <h2 style="font-size:17px">Produto e envio</h2>
-        <p>${escapeHtml(productName)} · ${escapeHtml(quantity)} unidade(s)<br>Frete: ${escapeHtml(shipping.service || "Não informado")}</p>
-        <p>${addressLines.map(escapeHtml).join("<br>") || "Endereço não informado"}</p>
-        <p><strong>Total do produto e frete: ${escapeHtml(formatCurrency(total))}</strong></p>
-        <p>Pagamento: ${escapeHtml(order.paymentMethod || "Não informado")}</p>
-      </main>
-    `
+    text,
+    html
   })
-
-  if (error) throw new Error(error.message || "O Resend não conseguiu enviar o email.")
-  return { sent: Boolean(data?.id), id: data?.id || null }
 }
 
 export function buildTrackingEmail({ orderId, customer = {}, shipping = {}, trackingCode }) {
@@ -131,16 +152,10 @@ export function buildTrackingEmail({ orderId, customer = {}, shipping = {}, trac
 export async function sendTrackingNotification({ orderId, customer = {}, shipping = {}, trackingCode }) {
   const recipient = resolveTrackingRecipient(customer)
   if (!recipient) return { sent: false, reason: "missing_recipient" }
-
-  const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) return { sent: false, reason: "not_configured" }
-  const sender = String(process.env.RESEND_FROM_EMAIL || "").trim()
-  if (!sender) return { sent: false, reason: "sender_not_configured" }
-
-  const email = buildTrackingEmail({ orderId, customer, shipping, trackingCode })
-  const resend = new Resend(apiKey)
-  const { data, error } = await resend.emails.send({ from: sender, to: recipient, ...email })
-
-  if (error) throw new Error(error.message || "O Resend não conseguiu enviar o email de rastreio.")
-  return { sent: Boolean(data?.id), id: data?.id || null }
+  return sendEmailJs(
+    process.env.EMAILJS_TRACKING_TEMPLATE_ID,
+    recipient,
+    buildTrackingEmail({ orderId, customer, shipping, trackingCode }),
+    { name: customer.name || "Cliente", tracking_code: trackingCode }
+  )
 }

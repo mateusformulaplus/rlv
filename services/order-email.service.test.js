@@ -2,69 +2,58 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { buildTrackingEmail, resolveTrackingRecipient, sendOrderNotification, sendTrackingNotification } from "./order-email.service.js"
 
-test("skips order email when Resend is not configured", async () => {
-  const originalApiKey = process.env.RESEND_API_KEY
-  delete process.env.RESEND_API_KEY
+const emailJsVariables = [
+  "EMAILJS_SERVICE_ID",
+  "EMAILJS_ORDER_TEMPLATE_ID",
+  "EMAILJS_TRACKING_TEMPLATE_ID",
+  "EMAILJS_PUBLIC_KEY",
+  "EMAILJS_PRIVATE_KEY",
+  "EMAILJS_TO_EMAIL",
+  "EMAILJS_TRACKING_TO_EMAIL"
+]
+
+async function withEmailJsEnvironment(values, run) {
+  const originalValues = Object.fromEntries(emailJsVariables.map((name) => [name, process.env[name]]))
+  for (const name of emailJsVariables) {
+    if (values[name] === undefined) delete process.env[name]
+    else process.env[name] = values[name]
+  }
 
   try {
+    return await run()
+  } finally {
+    for (const name of emailJsVariables) {
+      if (originalValues[name] === undefined) delete process.env[name]
+      else process.env[name] = originalValues[name]
+    }
+  }
+}
+
+const completeConfiguration = {
+  EMAILJS_SERVICE_ID: "service_test",
+  EMAILJS_ORDER_TEMPLATE_ID: "template_order_test",
+  EMAILJS_TRACKING_TEMPLATE_ID: "template_tracking_test",
+  EMAILJS_PUBLIC_KEY: "public_test",
+  EMAILJS_PRIVATE_KEY: "private_test"
+}
+
+test("skips order email when EmailJS is not fully configured", async () => {
+  await withEmailJsEnvironment({}, async () => {
     assert.deepEqual(await sendOrderNotification({ orderId: "test-order" }), {
       sent: false,
       reason: "not_configured"
     })
-  } finally {
-    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY
-    else process.env.RESEND_API_KEY = originalApiKey
-  }
-})
-
-test("does not send a tracking email without the customer's address", async () => {
-  const originalRecipient = process.env.RESEND_TO_EMAIL
-  delete process.env.RESEND_TO_EMAIL
-
-  try {
-  assert.deepEqual(await sendTrackingNotification({
-    orderId: "test-order",
-    customer: {},
-    trackingCode: "BR123456789"
-  }), {
-    sent: false,
-    reason: "missing_recipient"
   })
-  } finally {
-    if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
-    else process.env.RESEND_TO_EMAIL = originalRecipient
-  }
 })
 
-test("uses the configured Resend recipient for tracking notifications", () => {
-  const originalRecipient = process.env.RESEND_TO_EMAIL
-  const originalSender = process.env.RESEND_FROM_EMAIL
-  process.env.RESEND_TO_EMAIL = "expedicao@example.com"
-  process.env.RESEND_FROM_EMAIL = "envios@rlv.example"
-
-  try {
-    assert.equal(resolveTrackingRecipient({ email: "customer@example.com" }), "expedicao@example.com")
-  } finally {
-    if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
-    else process.env.RESEND_TO_EMAIL = originalRecipient
-    if (originalSender === undefined) delete process.env.RESEND_FROM_EMAIL
-    else process.env.RESEND_FROM_EMAIL = originalSender
-  }
-})
-
-test("uses the Resend account owner when using the test sender", () => {
-  const originalRecipient = process.env.RESEND_TO_EMAIL
-  process.env.RESEND_TO_EMAIL = "old-render-address@example.com"
-
-  try {
-    assert.equal(
-      resolveTrackingRecipient({ email: "customer@example.com" }, "onboarding@resend.dev"),
-      "expedicao@formulaplus.com.br"
-    )
-  } finally {
-    if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
-    else process.env.RESEND_TO_EMAIL = originalRecipient
-  }
+test("uses tracking override or falls back to customer", async () => {
+  await withEmailJsEnvironment({ EMAILJS_TRACKING_TO_EMAIL: "testing@example.com" }, async () => {
+    assert.equal(resolveTrackingRecipient({ email: "cliente@example.com" }), "testing@example.com")
+  })
+  await withEmailJsEnvironment({}, async () => {
+    assert.equal(resolveTrackingRecipient({ email: "cliente@example.com" }), "cliente@example.com")
+    assert.equal(resolveTrackingRecipient({}), "")
+  })
 })
 
 test("builds a tracking email with the RLV brand palette", () => {
@@ -82,48 +71,54 @@ test("builds a tracking email with the RLV brand palette", () => {
   assert.match(email.text, /Código de rastreio: BR123456789/)
 })
 
-test("skips tracking email when Resend is not configured", async () => {
-  const originalApiKey = process.env.RESEND_API_KEY
-  delete process.env.RESEND_API_KEY
+test("sends tracking template params to EmailJS", async () => {
+  const originalFetch = globalThis.fetch
+  let request
+  globalThis.fetch = async (url, options) => {
+    request = { url, options }
+    return { ok: true, text: async () => "OK" }
+  }
 
   try {
-    assert.deepEqual(await sendTrackingNotification({
-      orderId: "test-order",
-      customer: { email: "customer@example.com" },
-      trackingCode: "BR123456789"
-    }), {
-      sent: false,
-      reason: "not_configured"
+    await withEmailJsEnvironment({
+      ...completeConfiguration,
+    }, async () => {
+      assert.deepEqual(await sendTrackingNotification({
+        orderId: "kit-1",
+        customer: { name: "Cliente Teste", email: "cliente@example.com" },
+        shipping: { serviceName: "Correios" },
+        trackingCode: "BR123456789"
+      }), { sent: true, id: null })
     })
+
+    assert.equal(request.url, "https://api.emailjs.com/api/v1.0/email/send")
+    const body = JSON.parse(request.options.body)
+    assert.equal(body.service_id, "service_test")
+    assert.equal(body.template_id, "template_tracking_test")
+    assert.equal(body.user_id, "public_test")
+    assert.equal(body.accessToken, "private_test")
+    assert.equal(body.template_params.to_email, "cliente@example.com")
+    assert.equal(body.template_params.name, "Cliente Teste")
+    assert.equal(body.template_params.tracking_code, "BR123456789")
+    assert.match(body.template_params.message, /Código de rastreio: BR123456789/)
+    assert.match(body.template_params.message_html, /BR123456789/)
   } finally {
-    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY
-    else process.env.RESEND_API_KEY = originalApiKey
+    globalThis.fetch = originalFetch
   }
 })
 
-test("requires a configured sender for customer tracking emails", async () => {
-  const originalApiKey = process.env.RESEND_API_KEY
-  const originalSender = process.env.RESEND_FROM_EMAIL
-  const originalRecipient = process.env.RESEND_TO_EMAIL
-  process.env.RESEND_API_KEY = "re_test_key"
-  delete process.env.RESEND_FROM_EMAIL
-  process.env.RESEND_TO_EMAIL = "expedicao@example.com"
+test("reports EmailJS API errors", async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => ({ ok: false, text: async () => "Template not found" })
 
   try {
-    assert.deepEqual(await sendTrackingNotification({
-      orderId: "test-order",
-      customer: { email: "customer@example.com" },
-      trackingCode: "BR123456789"
-    }), {
-      sent: false,
-      reason: "sender_not_configured"
+    await withEmailJsEnvironment(completeConfiguration, async () => {
+      await assert.rejects(
+        sendOrderNotification({ orderId: "test-order" }),
+        /Template not found/
+      )
     })
   } finally {
-    if (originalApiKey === undefined) delete process.env.RESEND_API_KEY
-    else process.env.RESEND_API_KEY = originalApiKey
-    if (originalSender === undefined) delete process.env.RESEND_FROM_EMAIL
-    else process.env.RESEND_FROM_EMAIL = originalSender
-    if (originalRecipient === undefined) delete process.env.RESEND_TO_EMAIL
-    else process.env.RESEND_TO_EMAIL = originalRecipient
+    globalThis.fetch = originalFetch
   }
 })

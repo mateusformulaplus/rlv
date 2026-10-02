@@ -228,21 +228,19 @@ export default async function expedicaoRoutes(fastify, options = {}) {
         trackingCode
       })
     } catch (error) {
-      const resendError = error instanceof Error ? error.message : "Resposta inválida do Resend."
-      request.log.error({ message: resendError }, "Falha ao enviar e-mail de rastreio pelo Resend.")
+      const emailError = error instanceof Error ? error.message : "Resposta inválida do EmailJS."
+      request.log.error({ message: emailError }, "Falha ao enviar e-mail de rastreio pelo EmailJS.")
       return reply.code(502).send({
         success: false,
         trackingCodeSaved: true,
-        message: `Código salvo, mas o Resend recusou o e-mail: ${resendError}`
+        message: `Código salvo, mas o EmailJS recusou o e-mail: ${emailError}`
       })
     }
 
     if (!email.sent) {
       const message = email.reason === "not_configured"
-        ? "Código salvo, mas RESEND_API_KEY não está configurada no servidor."
-        : email.reason === "sender_not_configured"
-          ? "Código salvo, mas configure um remetente verificado em RESEND_FROM_EMAIL."
-          : "Código salvo, mas não foi possível enviar o e-mail."
+        ? "Código salvo, mas a configuração do EmailJS está incompleta no servidor."
+        : "Código salvo, mas não foi possível enviar o e-mail."
       return reply.code(503).send({ success: false, trackingCodeSaved: true, message })
     }
 
