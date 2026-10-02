@@ -5,7 +5,6 @@ import {
 } from "../services/pagbank.service.js"
 import { handlePagBankWebhook } from "../controllers/webhook.controller.js"
 import { getOrderStatus } from "../controllers/order.controller.js"
-import { sendOrderNotification } from "../services/order-email.service.js"
 import {
     calculateMelhorEnvioShipping,
     createMelhorEnvioAuthorizationUrl,
@@ -21,18 +20,6 @@ export default async function checkoutRoutes(fastify) {
         try {
             const orderData = request.body || {}
             const result = await createTransparentOrder(orderData)
-            try {
-                const emailResult = await sendOrderNotification({
-                    ...orderData,
-                    orderId: result.orderId,
-                    status: result.status
-                })
-                if (!emailResult.sent) {
-                    request.log.warn({ orderId: result.orderId }, "Notificação por email não enviada: configuração do EmailJS ausente.")
-                }
-            } catch (emailError) {
-                request.log.error({ orderId: result.orderId, message: emailError.message }, "Falha ao enviar email de novo pedido.")
-            }
             return reply.send({ success: true, ...result })
         } catch (error) {
             return reply.code(400).send({ success: false, message: error.message })

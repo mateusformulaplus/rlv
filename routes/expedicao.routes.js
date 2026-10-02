@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs"
 import { findPedidoByPagBankId, getExpedicaoSummary, listPedidos, markPedidoAsSent, savePedidoWebhook } from "../lib/expedicao-store.js"
 import { findOrderByPagBankId, saveOrder, syncExistingOrdersToExpedicao, toExpedicaoOrderDetails } from "../services/order.service.js"
-import { sendTrackingNotification } from "../services/order-email.service.js"
+import { sendTrackingNotification } from "../services/tracking-email.service.js"
 import { userRepository } from "../services/user.service.js"
 
 const SESSION_COOKIE = "expedicao_token"
@@ -219,14 +219,18 @@ export default async function expedicaoRoutes(fastify, options = {}) {
       return reply.code(404).send({ success: false, message: "Pedido PagBank não encontrado." })
     }
     const savedOrder = await saveOrder({ ...order, trackingCode })
-    let email
     try {
-      email = await sendTrackingNotification({
+      const email = await sendTrackingNotification({
         orderId: savedOrder.referenceId || savedOrder.pagbankOrderId,
         customer: { ...savedOrder.customer, email: savedOrder.customer?.email || pedido.cliente?.email },
-        shipping: savedOrder.shipping,
         trackingCode
       })
+      if (!email.sent) {
+        const message = email.reason === "not_configured"
+          ? "Código salvo, mas a configuração do EmailJS está incompleta no servidor."
+          : "Código salvo, mas o pedido não tem um e-mail de destinatário."
+        return reply.code(503).send({ success: false, trackingCodeSaved: true, message })
+      }
     } catch (error) {
       const emailError = error instanceof Error ? error.message : "Resposta inválida do EmailJS."
       request.log.error({ message: emailError }, "Falha ao enviar e-mail de rastreio pelo EmailJS.")
@@ -235,13 +239,6 @@ export default async function expedicaoRoutes(fastify, options = {}) {
         trackingCodeSaved: true,
         message: `Código salvo, mas o EmailJS recusou o e-mail: ${emailError}`
       })
-    }
-
-    if (!email.sent) {
-      const message = email.reason === "not_configured"
-        ? "Código salvo, mas a configuração do EmailJS está incompleta no servidor."
-        : "Código salvo, mas não foi possível enviar o e-mail."
-      return reply.code(503).send({ success: false, trackingCodeSaved: true, message })
     }
 
     return reply.send({ success: true, trackingCode, emailSent: true })
