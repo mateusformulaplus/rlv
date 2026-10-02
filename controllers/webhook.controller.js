@@ -1,5 +1,6 @@
 import { getPagBankOrder } from "../services/pagbank.service.js"
 import { findOrderByPagBankId, fulfillPaidOrder, saveOrder } from "../services/order.service.js"
+import { syncPaidOrderToBling } from "../services/bling.service.js"
 
 export async function handlePagBankWebhook(payload, dependencies = {}) {
 	const findOrder = dependencies.findOrderByPagBankId || findOrderByPagBankId
@@ -19,7 +20,19 @@ export async function handlePagBankWebhook(payload, dependencies = {}) {
 		return { status: "ignored", paymentStatus: pagbankOrder.charges?.[0]?.status || "UNKNOWN" }
 	}
 
-	const paidOrder = await persistOrder({ ...localOrder, status: "paid", pagbank: pagbankOrder })
+	let paidOrder = await persistOrder({ ...localOrder, status: "paid", pagbank: pagbankOrder })
+	const syncBlingOrder = dependencies.syncPaidOrderToBling || syncPaidOrderToBling
+	try {
+		const blingResult = await syncBlingOrder(paidOrder)
+		if (blingResult?.synced && blingResult.id) {
+			paidOrder = await persistOrder({ ...paidOrder, blingOrderId: String(blingResult.id) })
+		} else if (blingResult?.reason !== "not_configured") {
+			console.warn(`[PagBank] Pedido ${pagbankOrderId} não sincronizado com o Bling: ${blingResult?.reason || "motivo desconhecido"}`)
+		}
+	} catch (error) {
+		console.error(`[PagBank] Pagamento ${pagbankOrderId} confirmado; falha ao sincronizar com o Bling:`, error.message)
+	}
+
 	let fulfilledOrder
 	try {
 		fulfilledOrder = await fulfillOrder(paidOrder)

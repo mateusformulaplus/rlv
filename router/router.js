@@ -5,6 +5,7 @@ import {
 } from "../services/pagbank.service.js"
 import { handlePagBankWebhook } from "../controllers/webhook.controller.js"
 import { getOrderStatus } from "../controllers/order.controller.js"
+import { completeBlingAuthorization, createBlingAuthorizationUrl } from "../services/bling.service.js"
 import {
     calculateMelhorEnvioShipping,
     createMelhorEnvioAuthorizationUrl,
@@ -53,6 +54,25 @@ export default async function checkoutRoutes(fastify) {
             return reply.send({ success: true, message: "Melhor Envio autorizado", ...result })
         } catch (error) {
             return reply.code(400).send({ success: false, message: error.message })
+        }
+    })
+
+    fastify.get("/api/bling/authorize", async (_request, reply) => {
+        try {
+            return reply.redirect(await createBlingAuthorizationUrl())
+        } catch (error) {
+            return reply.code(500).send({ success: false, message: error.message })
+        }
+    })
+
+    fastify.get("/api/bling/callback", async (request, reply) => {
+        try {
+            const { code, state, error } = request.query || {}
+            if (error) throw new Error("Autorização do Bling foi recusada.")
+            const result = await completeBlingAuthorization(code, state)
+            return reply.send({ success: true, message: "Bling autorizado com sucesso.", ...result })
+        } catch (callbackError) {
+            return reply.code(400).send({ success: false, message: callbackError.message })
         }
     })
 

@@ -5,7 +5,9 @@ const tables = [
   "expedicao_pedidos",
   "orders",
   "melhor_envio_credentials",
-  "melhor_envio_oauth_states"
+  "melhor_envio_oauth_states",
+  "bling_credentials",
+  "bling_oauth_states"
 ]
 
 

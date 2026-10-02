@@ -76,3 +76,20 @@ model MelhorEnvioOAuthState {
 
   @@map("melhor_envio_oauth_states")
 }
+
+model BlingCredential {
+  id           String    @id
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@map("bling_credentials")
+}
+
+model BlingOAuthState {
+  state     String   @id
+  expiresAt DateTime
+
+  @@map("bling_oauth_states")
+}
