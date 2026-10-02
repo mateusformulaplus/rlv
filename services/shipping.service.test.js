@@ -17,12 +17,12 @@ test("calculates package weight from the unit weight and kit quantity", () => {
   }
 })
 
-test("calculates compact package dimensions for every kit", () => {
+test("uses the measured package dimensions for each kit quantity", () => {
   for (const [quantity, expected] of [
-    [1, { width: 12, height: 3, length: 17 }],
-    [2, { width: 24, height: 3, length: 17 }],
-    [3, { width: 24, height: 3, length: 34 }],
-    [6, { width: 36, height: 3, length: 34 }]
+    [1, { width: 12, height: 18, length: 2 }],
+    [2, { width: 12, height: 18, length: 2.5 }],
+    [3, { width: 12, height: 18, length: 3 }],
+    [6, { width: 12, height: 18, length: 4 }]
   ]) {
     assert.deepEqual(getPackageDimensions(quantity), expected)
   }
@@ -32,7 +32,9 @@ test("restores known kit quantities and fixes old list values", () => {
   assert.equal(resolveShippingQuantity(1, "kit-3"), 3)
   assert.equal(resolveShippingQuantity(1, "kit-4"), 6)
   assert.equal(correctLegacyPackageWeight("0.0211 kg", 6), "0.1266 kg")
-  assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "36x3x34 cm")
+  assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "12x18x4 cm")
+  assert.equal(correctLegacyPackageDimensions("12x3x17 cm", 1), "12x18x2 cm")
+  assert.equal(correctLegacyPackageDimensions("12x18x17 cm", 1), "12x18x2 cm")
 })
 
 test("rejects non-integer, non-finite, zero, negative and excessive quantities", () => {
@@ -41,7 +43,7 @@ test("rejects non-integer, non-finite, zero, negative and excessive quantities",
   }
 })
 
-test("normalizes quote weight per item and corrects legacy fixed parcel weight", () => {
+test("normalizes quotes to package dimensions and total package weight", () => {
   const quote = normalizeCalculationShipment({
     products: [{ name: "Kit RLV", quantity: 3, weight: 0.5, width: 1, height: 1, length: 1 }]
   })
@@ -52,11 +54,11 @@ test("normalizes quote weight per item and corrects legacy fixed parcel weight",
 
   assert.deepEqual(quote.products[0], {
     name: "Kit RLV",
-    quantity: 3,
-    weight: 0.0211,
+    quantity: 1,
+    weight: 0.0633,
     width: 12,
-    height: 3,
-    length: 17
+    height: 18,
+    length: 3
   })
   assert.equal(orderShipping.products[0].weight, 0.0211)
   assert.equal(orderShipping.volumes[0].weight, 0.0633)

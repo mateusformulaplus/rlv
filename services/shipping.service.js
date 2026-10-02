@@ -1,8 +1,9 @@
 export const PRODUCT_UNIT_WEIGHT_KG = 0.0211
 export const MAX_SHIPPING_QUANTITY = 100
 
-const DEFAULT_DIMENSIONS_CM = { width: 12, height: 3, length: 17 }
+const DEFAULT_DIMENSIONS_CM = { width: 12, height: 18, length: 2 }
 const KIT_QUANTITIES = { "kit-1": 1, "kit-2": 2, "kit-3": 3, "kit-4": 6 }
+const PACKAGE_DEPTH_BY_QUANTITY = { 1: 2, 2: 2.5, 3: 3, 6: 4 }
 
 export function validateShippingQuantity(value = 1) {
   const quantity = Number(value)
@@ -23,6 +24,15 @@ export function getPackageWeight(quantity) {
 
 export function getPackageDimensions(quantity, unitDimensions = DEFAULT_DIMENSIONS_CM) {
   const safeQuantity = validateShippingQuantity(quantity)
+  const packageDepth = PACKAGE_DEPTH_BY_QUANTITY[safeQuantity]
+  if (packageDepth) {
+    return {
+      width: dimension(unitDimensions.width, DEFAULT_DIMENSIONS_CM.width),
+      height: dimension(unitDimensions.height, DEFAULT_DIMENSIONS_CM.height),
+      length: packageDepth
+    }
+  }
+
   const columns = Math.ceil(Math.sqrt(safeQuantity))
   const rows = Math.ceil(safeQuantity / columns)
 
@@ -39,7 +49,7 @@ export function correctLegacyPackageWeight(weight, quantity) {
 }
 
 export function correctLegacyPackageDimensions(dimensions, quantity) {
-  if (!["12x2x17 cm", "10x2x15 cm"].includes(String(dimensions || "").trim())) return dimensions
+  if (!["12x2x17 cm", "12x3x17 cm", "12x18x17 cm", "24x18x17 cm", "24x18x34 cm", "36x18x34 cm", "24x18x2 cm", "24x18x4 cm", "36x18x4 cm", "10x2x15 cm"].includes(String(dimensions || "").trim())) return dimensions
   const packageDimensions = getPackageDimensions(quantity)
   return `${packageDimensions.width}x${packageDimensions.height}x${packageDimensions.length} cm`
 }
@@ -56,12 +66,15 @@ export function normalizeCalculationShipment(shipment = {}) {
 
   return {
     ...shipment,
-    products: shipment.products.map((product) => ({
-      ...product,
-      quantity: validateShippingQuantity(product.quantity ?? 1),
-      weight: PRODUCT_UNIT_WEIGHT_KG,
-      ...DEFAULT_DIMENSIONS_CM
-    }))
+    products: shipment.products.map((product) => {
+      const quantity = validateShippingQuantity(product.quantity ?? 1)
+      return {
+        ...product,
+        quantity: 1,
+        weight: getPackageWeight(quantity),
+        ...getPackageDimensions(quantity)
+      }
+    })
   }
 }
 
