@@ -5,7 +5,7 @@ import {
 } from "../services/pagbank.service.js"
 import { handlePagBankWebhook } from "../controllers/webhook.controller.js"
 import { getOrderStatus } from "../controllers/order.controller.js"
-import { completeBlingAuthorization, createBlingAuthorizationUrl } from "../services/bling.service.js"
+import { completeBlingAuthorization, createBlingAuthorizationUrl, getBlingConnectionStatus } from "../services/bling.service.js"
 import {
     calculateMelhorEnvioShipping,
     createMelhorEnvioAuthorizationUrl,
@@ -57,6 +57,15 @@ export default async function checkoutRoutes(fastify) {
         }
     })
 
+    fastify.get("/api/bling/status", async (_request, reply) => {
+        try {
+            const status = await getBlingConnectionStatus()
+            return reply.send({ success: true, ...status })
+        } catch (error) {
+            return reply.code(500).send({ success: false, message: error.message })
+        }
+    })
+
     fastify.get("/api/bling/authorize", async (_request, reply) => {
         try {
             return reply.redirect(await createBlingAuthorizationUrl())
@@ -69,10 +78,11 @@ export default async function checkoutRoutes(fastify) {
         try {
             const { code, state, error } = request.query || {}
             if (error) throw new Error("Autorização do Bling foi recusada.")
-            const result = await completeBlingAuthorization(code, state)
-            return reply.send({ success: true, message: "Bling autorizado com sucesso.", ...result })
+            await completeBlingAuthorization(code, state)
+            // Redireciona de volta ao painel após autorização bem-sucedida
+            return reply.redirect("/expedicao/integracoes?bling=conectado")
         } catch (callbackError) {
-            return reply.code(400).send({ success: false, message: callbackError.message })
+            return reply.redirect(`/expedicao/integracoes?bling=erro&msg=${encodeURIComponent(callbackError.message)}`)
         }
     })
 

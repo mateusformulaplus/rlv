@@ -201,21 +201,42 @@ function paymentType(order) {
       || order.paymentMethod
       || ""
   ).toUpperCase()
-  if (method === "PIX") return 17
+  if (method === "PIX") return 20
   if (method === "CREDIT_CARD") return 3
   if (method === "DEBIT_CARD") return 4
   return 99
 }
 
 async function findPaymentForm(order, token, fetchImpl) {
-  const query = new URLSearchParams({
-    "tiposPagamentos[]": String(paymentType(order)),
-    situacao: "1"
-  })
-  const result = await blingRequest(`/formas-pagamentos?${query}`, { token, fetchImpl })
-  const form = (result.data || []).find((item) => item.id)
-  if (!form) throw new Error(`Nenhuma forma de pagamento ativa do tipo ${paymentType(order)} foi encontrada no Bling.`)
-  return form.id
+  try {
+    const result = await blingRequest("/formas-pagamentos", { token, fetchImpl })
+    const forms = result.data || []
+    if (!forms.length) return null
+
+    const method = String(
+      order.pagbank?.charges?.find((charge) => charge.status === "PAID")?.payment_method?.type
+        || order.paymentMethod
+        || ""
+    ).toUpperCase()
+
+    let matched = null
+    if (method === "PIX") {
+      matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 20 || f.tipoPagamento === 17 || /pix/i.test(f.descricao)))
+    } else if (method === "CREDIT_CARD" || method === "DEBIT_CARD") {
+      matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 3 || f.tipoPagamento === 4 || /cart.o|cr.dito|d.bito/i.test(f.descricao)))
+    }
+
+    if (!matched) {
+      matched = forms.find((f) => f.situacao === 1 && f.padrao === 1)
+        || forms.find((f) => f.situacao === 1)
+        || forms[0]
+    }
+
+    return matched?.id || null
+  } catch (error) {
+    console.warn(`[Bling] Não foi possível obter forma de pagamento: ${error.message}`)
+    return null
+  }
 }
 
 async function findBlingProduct(order, token, fetchImpl) {
@@ -223,12 +244,16 @@ async function findBlingProduct(order, token, fetchImpl) {
   const sku = PRODUCT_SKUS_BY_REFERENCE[referenceId]
   if (!sku) return null
 
-  const query = new URLSearchParams({ tipo: "P", criterio: "2" })
-  query.append("codigos[]", sku)
-  const result = await blingRequest(`/produtos?${query}`, { token, fetchImpl })
-  const product = (result.data || []).find((item) => String(item.codigo).toUpperCase() === sku)
-  if (!product?.id) throw new Error(`Produto SKU ${sku} não encontrado ou inativo no Bling.`)
-  return { id: product.id, sku }
+  try {
+    const query = new URLSearchParams({ tipo: "P", criterio: "2" })
+    query.append("codigos[]", sku)
+    const result = await blingRequest(`/produtos?${query}`, { token, fetchImpl })
+    const product = (result.data || []).find((item) => String(item.codigo).toUpperCase() === sku)
+    if (product?.id) return { id: product.id, sku }
+  } catch (error) {
+    console.warn(`[Bling] SKU ${sku} não encontrado no cadastro do Bling: ${error.message}`)
+  }
+  return null
 }
 
 export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, today = new Date().toISOString().slice(0, 10), blingProduct = null) {
@@ -259,12 +284,14 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       quantidadeVolumes: 1,
       ...(packageWeightKg ? { pesoBruto: packageWeightKg } : {})
     },
-    parcelas: [{
-      dataVencimento: today,
-      valor: amount + shippingAmount,
-      formaPagamento: { id: Number(paymentFormId) },
-      observacoes: `Pago via PagBank (${paymentType(order)}).`
-    }]
+    ...(paymentFormId ? {
+      parcelas: [{
+        dataVencimento: today,
+        valor: amount + shippingAmount,
+        formaPagamento: { id: Number(paymentFormId) },
+        observacoes: `Pago via PagBank (${paymentType(order)}).`
+      }]
+    } : {})
   }
 }
 
@@ -296,4 +323,26 @@ export async function syncPaidOrderToBling(order, dependencies = {}) {
   const id = result.data?.id
   if (!id) throw new Error("O Bling criou a venda sem retornar o ID.")
   return { synced: true, id, existing: false }
+}
+
+export async function getBlingConnectionStatus(prisma = getPrismaClient()) {
+  const config = getBlingAppConfig()
+  const configured = !!(config.clientId && config.clientSecret && config.redirectUri)
+  if (!configured) {
+    return { connected: false, configured: false, reason: "Credenciais do Bling não configuradas no servidor." }
+  }
+
+  const credential = await prisma.blingCredential.findUnique({ where: { id: CREDENTIAL_ID } })
+  if (!credential) {
+    return { connected: false, configured: true, reason: "Bling não autorizado. Clique em 'Conectar Bling' para autorizar." }
+  }
+
+  const expired = credential.expiresAt && credential.expiresAt.getTime() <= Date.now()
+  return {
+    connected: true,
+    configured: true,
+    tokenExpired: expired,
+    expiresAt: credential.expiresAt,
+    reason: expired ? "Token expirado — será renovado automaticamente no próximo pedido." : null
+  }
 }

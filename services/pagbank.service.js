@@ -93,7 +93,7 @@ export async function createCheckout(requestData = {}) {
         paymentMethod: requestData.paymentMethod || "CREDIT_CARD",
         notificationUrl: requestData.notificationUrl
             || process.env.PAGBANK_WEBHOOK_URL
-            || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
+            || "https://rlv-ttmm.onrender.com/api/pagbank/webhook"
     })
 
     try {
@@ -295,7 +295,7 @@ export async function createTransparentOrder(requestData = {}) {
     try {
         const notificationUrl = requestData.notificationUrl
             || process.env.PAGBANK_WEBHOOK_URL
-            || "https://rlv-4p28.onrender.com/api/pagbank/webhook"
+            || "https://rlv-ttmm.onrender.com/api/pagbank/webhook"
         const payload = buildTransparentOrderPayload({ ...requestData, quantity, shipping, notificationUrl })
         const response = await apiPagBank.post("/orders", payload)
         const charge = response.data?.charges?.[0] || {}

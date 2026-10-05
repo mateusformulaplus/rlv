@@ -10,10 +10,29 @@ export async function handlePagBankWebhook(payload, dependencies = {}) {
 	const pagbankOrderId = payload?.id
 	if (!pagbankOrderId) throw new Error("Webhook PagBank sem identificador do pedido")
 
-	const localOrder = await findOrder(pagbankOrderId)
-	if (!localOrder) throw new Error("Pedido PagBank não encontrado localmente")
-
+	let localOrder = await findOrder(pagbankOrderId)
 	const pagbankOrder = await fetchPagBankOrder(pagbankOrderId)
+
+	if (!localOrder) {
+		const customer = pagbankOrder.customer ? {
+			name: pagbankOrder.customer.name,
+			email: pagbankOrder.customer.email,
+			taxId: pagbankOrder.customer.tax_id
+		} : {}
+		const item = pagbankOrder.items?.[0] || {}
+		localOrder = {
+			pagbankOrderId: pagbankOrder.id,
+			referenceId: pagbankOrder.reference_id,
+			status: "payment_pending",
+			product: {
+				name: item.name || "RLV Fórmulas",
+				amount: (item.unit_amount || 0) / 100,
+				quantity: item.quantity || 1
+			},
+			customer,
+			shipping: pagbankOrder.shipping || {}
+		}
+	}
 	const isPaid = pagbankOrder.charges?.some((charge) => charge.status === "PAID")
 	if (!isPaid) {
 		await persistOrder({ ...localOrder, status: pagbankOrder.charges?.[0]?.status?.toLowerCase() || "payment_pending" })
