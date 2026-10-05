@@ -239,8 +239,12 @@ async function findPaymentForm(order, token, fetchImpl) {
     let matched = null
     if (method === "PIX") {
       matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 20 || f.tipoPagamento === 17 || /pix/i.test(f.descricao)))
-    } else if (method === "CREDIT_CARD" || method === "DEBIT_CARD") {
-      matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 3 || f.tipoPagamento === 4 || /cart.o|cr.dito|d.bito/i.test(f.descricao)))
+    } else if (method === "CREDIT_CARD") {
+      matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 3 || /cr.dito/i.test(f.descricao)))
+        || forms.find((f) => f.situacao === 1 && (/cart.o/i.test(f.descricao)))
+    } else if (method === "DEBIT_CARD") {
+      matched = forms.find((f) => f.situacao === 1 && (f.tipoPagamento === 4 || /d.bito/i.test(f.descricao)))
+        || forms.find((f) => f.situacao === 1 && (/cart.o/i.test(f.descricao)))
     }
 
     if (!matched) {
@@ -280,6 +284,52 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   const description = String(product.name || order.productName || "Produto PagBank")
   const packageWeightKg = Number(order.shipping?.volumes?.[0]?.weight || 0)
 
+  const charge = order.pagbank?.charges?.find((c) => c.status === "PAID") || order.pagbank?.charges?.[0] || {}
+  const paymentMethod = charge.payment_method || {}
+  const methodType = String(paymentMethod.type || order.paymentMethod || "").toUpperCase()
+  const installmentsCount = Math.max(1, Number(paymentMethod.installments || order.installments || 1))
+
+  const total = Number((amount + shippingAmount).toFixed(2))
+
+  let parcelas = []
+  if (paymentFormId) {
+    if (methodType === "CREDIT_CARD" && installmentsCount > 1) {
+      const baseValue = Math.floor((total / installmentsCount) * 100) / 100
+      const diff = Number((total - (baseValue * installmentsCount)).toFixed(2))
+
+      const baseDate = new Date(today + "T12:00:00Z")
+      for (let i = 0; i < installmentsCount; i++) {
+        const dueDate = new Date(baseDate)
+        dueDate.setMonth(dueDate.getMonth() + i)
+        const valorParcela = i === 0 ? Number((baseValue + diff).toFixed(2)) : baseValue
+
+        parcelas.push({
+          dataVencimento: dueDate.toISOString().slice(0, 10),
+          valor: valorParcela,
+          formaPagamento: { id: Number(paymentFormId) },
+          observacoes: `Cartão de Crédito - Parcela ${i + 1}/${installmentsCount}`
+        })
+      }
+    } else {
+      let desc = "Pago via PagBank"
+      if (methodType === "PIX") desc = "Pago via Pix"
+      else if (methodType === "CREDIT_CARD") desc = "Cartão de Crédito (1x)"
+      else if (methodType === "DEBIT_CARD") desc = "Cartão de Débito"
+
+      parcelas.push({
+        dataVencimento: today,
+        valor: total,
+        formaPagamento: { id: Number(paymentFormId) },
+        observacoes: desc
+      })
+    }
+  }
+
+  let paymentMethodLabel = "Outro"
+  if (methodType === "PIX") paymentMethodLabel = "Pix"
+  else if (methodType === "CREDIT_CARD") paymentMethodLabel = installmentsCount > 1 ? `Cartão de Crédito (${installmentsCount}x)` : "Cartão de Crédito (1x)"
+  else if (methodType === "DEBIT_CARD") paymentMethodLabel = "Cartão de Débito"
+
   return {
     numeroLoja: String(order.pagbankOrderId),
     data: today,
@@ -294,21 +344,14 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       unidade: "UN",
       ...(blingProduct ? { codigo: blingProduct.sku, produto: { id: Number(blingProduct.id) } } : {})
     }],
-    observacoesInternas: `Pagamento confirmado pelo PagBank. Pedido: ${order.pagbankOrderId}`,
+    observacoesInternas: `Pagamento confirmado pelo PagBank (${paymentMethodLabel}). Pedido: ${order.pagbankOrderId}`,
     transporte: {
       fretePorConta: 0,
       frete: shippingAmount,
       quantidadeVolumes: 1,
       ...(packageWeightKg ? { pesoBruto: packageWeightKg } : {})
     },
-    ...(paymentFormId ? {
-      parcelas: [{
-        dataVencimento: today,
-        valor: amount + shippingAmount,
-        formaPagamento: { id: Number(paymentFormId) },
-        observacoes: `Pago via PagBank (${paymentType(order)}).`
-      }]
-    } : {})
+    ...(parcelas.length > 0 ? { parcelas } : {})
   }
 }
 
