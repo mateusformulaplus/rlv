@@ -13,9 +13,9 @@ const PRODUCT_SKUS_BY_REFERENCE = {
 
 function getBlingAppConfig() {
   return {
-    clientId: process.env.BLING_CLIENT_ID || "",
-    clientSecret: process.env.BLING_CLIENT_SECRET || "",
-    redirectUri: process.env.BLING_REDIRECT_URI || ""
+    clientId: process.env.BLING_CLIENT_ID || "f6c0c5c396f775ebf8d818376980c38d1362bbc2",
+    clientSecret: process.env.BLING_CLIENT_SECRET || "8646e601b64a422573044b29cfef117cf9ae4cc83856c7550890b6c8cbda",
+    redirectUri: process.env.BLING_REDIRECT_URI || "https://rlv-ttmm.onrender.com/api/bling/callback"
   }
 }
 
@@ -141,17 +141,34 @@ async function getAccessToken(prisma, fetchImpl) {
   return tokens.access_token
 }
 
-async function blingRequest(path, { token, method = "GET", body, fetchImpl }) {
-  const response = await fetchImpl(`${API_URL}${path}`, {
-    method,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(body ? { "Content-Type": "application/json" } : {})
-    },
-    ...(body ? { body: JSON.stringify(body) } : {})
-  })
-  return parseResponse(response, `Falha na API do Bling (${method} ${path}).`)
+async function blingRequest(path, { token, method = "GET", body, fetchImpl, retries = 2 }) {
+  const fetchFn = fetchImpl || fetch
+  const url = `${API_URL}${path}`
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetchFn(url, {
+        method,
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+          ...(body ? { "Content-Type": "application/json" } : {})
+        },
+        ...(body ? { body: JSON.stringify(body) } : {})
+      })
+      if (response.status === 429 && attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
+        continue
+      }
+      return await parseResponse(response, `Falha na API do Bling (${method} ${path}).`)
+    } catch (error) {
+      const isRateLimit = error.message?.includes("limite de requisições") || error.message?.includes("429")
+      if (isRateLimit && attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)))
+        continue
+      }
+      throw error
+    }
+  }
 }
 
 function digits(value) {
