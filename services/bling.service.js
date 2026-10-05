@@ -260,6 +260,7 @@ async function findPaymentForm(order, token, fetchImpl) {
   }
 }
 
+
 async function findBlingProduct(order, token, fetchImpl) {
   const referenceId = String(order.referenceId || "").toLowerCase()
   const sku = PRODUCT_SKUS_BY_REFERENCE[referenceId]
