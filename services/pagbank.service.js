@@ -116,6 +116,7 @@ export function getTransparentCheckoutPublicKey() {
     return getPagBankPublicKey()
 }
 
+
 function isValidTaxId(value) {
     const digits = String(value || "").replace(/\D/g, "")
     if (/^(\d)\1+$/.test(digits)) return false
