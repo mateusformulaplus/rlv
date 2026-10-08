@@ -283,7 +283,7 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   const amount = Number(product.amount || order.amount || 0)
   const shippingAmount = Number(order.shippingAmount || 0)
   const description = String(product.name || order.productName || "Produto PagBank")
-  const packageWeightKg = Number(order.shipping?.volumes?.[0]?.weight || 0)
+  // packageWeightKg mantido para compatibilidade — calculado mais abaixo com os dados do volume
 
   const charge = order.pagbank?.charges?.find((c) => c.status === "PAID") || order.pagbank?.charges?.[0] || {}
   const paymentMethod = charge.payment_method || {}
@@ -337,42 +337,43 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   const shippingServiceName = shipping.serviceName
     || (shipping.service ? `Serviço ${shipping.service}` : "")
   const trackingCode = order.trackingCode || order.tracking?.tracking || order.tracking?.tracking_code || null
-  const carrierName = shipping.company?.name || shipping.company || (shippingServiceName.includes(" - ") ? shippingServiceName.split(" - ")[0].trim() : (shippingServiceName || null))
+  const carrierName = shipping.company?.name
+    || (typeof shipping.company === "string" ? shipping.company : null)
+    || (shippingServiceName.includes(" - ") ? shippingServiceName.split(" - ")[0].trim() : (shippingServiceName || null))
 
-  const width = Number(shippingVolume.width || shippingVolume.largura || 12)
-  const height = Number(shippingVolume.height || shippingVolume.altura || 18)
-  const length = Number(shippingVolume.length || shippingVolume.comprimento || shippingVolume.depth || shippingVolume.profundidade || 2)
-  const weight = Number(shippingVolume.weight || packageWeightKg || 0.0211)
-  const declaredValue = Number(shipping.insuranceValue || product.amount || order.amount || 0)
+  // Dimensões do pacote (cm) — enviadas DIRETO no objeto volume (API v3 Bling não aceita objeto aninhado 'dimensoes')
+  const largura = Number(shippingVolume.width || shippingVolume.largura || 12)
+  const altura = Number(shippingVolume.height || shippingVolume.altura || 18)
+  const comprimento = Number(shippingVolume.length || shippingVolume.comprimento || shippingVolume.depth || 2)
+  const pesoBruto = Number(shippingVolume.weight || 0) || Number((0.0211 * Number(product.quantity || 1)).toFixed(4))
+  const valorDeclarado = Number(shipping.insuranceValue || amount || 0)
 
+  // Volume com todos os campos obrigatórios para cotação e etiqueta no Bling
   const volumeItem = {
-    servico: shippingServiceName || undefined,
-    codigoRastreamento: trackingCode || undefined,
-    pesoBruto: weight,
-    pesoLiquido: weight,
-    valorDeclarado: declaredValue > 0 ? declaredValue : undefined,
-    dimensoes: {
-      largura: width,
-      altura: height,
-      comprimento: length
-    }
+    quantidade: 1,
+    pesoBruto,
+    pesoLiquido: pesoBruto,
+    largura,
+    altura,
+    comprimento,
+    ...(valorDeclarado > 0 ? { valorDeclarado } : {}),
+    ...(shippingServiceName ? { servico: shippingServiceName } : {}),
+    ...(trackingCode ? { codigoRastreamento: trackingCode } : {})
   }
-  Object.keys(volumeItem).forEach((key) => volumeItem[key] === undefined && delete volumeItem[key])
 
-  const transportadorData = carrierName ? { nome: carrierName } : null
   const shippingDesc = shippingServiceName ? ` | Frete: ${shippingServiceName}` : ""
 
-  const etiqueta = {
-    nome: shippingAddress.name || order.customer?.name || undefined,
-    endereco: shippingAddress.address || shippingAddress.street || undefined,
-    numero: shippingAddress.number || undefined,
-    complemento: shippingAddress.complement || undefined,
-    municipio: shippingAddress.city || undefined,
-    uf: shippingAddress.state_abbr || shippingAddress.state || undefined,
-    cep: digits(shippingAddress.postal_code || shippingAddress.cep) || undefined,
-    bairro: shippingAddress.district || undefined
-  }
-  Object.keys(etiqueta).forEach((key) => etiqueta[key] === undefined && delete etiqueta[key])
+  // Etiqueta de entrega — necessária para emissão de NF e cotação de volume no Bling
+  const etiqueta = {}
+  if (shippingAddress.name || order.customer?.name) etiqueta.nome = shippingAddress.name || order.customer?.name
+  if (shippingAddress.address || shippingAddress.street) etiqueta.endereco = shippingAddress.address || shippingAddress.street
+  if (shippingAddress.number) etiqueta.numero = shippingAddress.number
+  if (shippingAddress.complement) etiqueta.complemento = shippingAddress.complement
+  if (shippingAddress.district) etiqueta.bairro = shippingAddress.district
+  if (shippingAddress.city) etiqueta.municipio = shippingAddress.city
+  if (shippingAddress.state_abbr || shippingAddress.state) etiqueta.uf = shippingAddress.state_abbr || shippingAddress.state
+  const destCEP = digits(shippingAddress.postal_code || shippingAddress.cep || "")
+  if (destCEP) etiqueta.cep = destCEP
 
   return {
     numeroLoja: String(order.pagbankOrderId),
@@ -388,14 +389,14 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       unidade: "UN",
       ...(blingProduct ? { codigo: blingProduct.sku, produto: { id: Number(blingProduct.id) } } : {})
     }],
-    observacoes: shippingServiceName ? `Forma de Envio: ${shippingServiceName}` : undefined,
+    ...(shippingServiceName ? { observacoes: `Forma de Envio: ${shippingServiceName}` } : {}),
     observacoesInternas: `Pagamento confirmado pelo PagBank (${paymentMethodLabel}). Pedido: ${order.pagbankOrderId}${shippingDesc}`,
     transporte: {
       fretePorConta: 0,
       frete: shippingAmount,
       quantidadeVolumes: 1,
-      pesoBruto: weight,
-      ...(transportadorData ? { transportador: transportadorData } : {}),
+      pesoBruto,
+      ...(carrierName ? { transportador: { nome: carrierName } } : {}),
       ...(Object.keys(etiqueta).length > 0 ? { etiqueta } : {}),
       volumes: [volumeItem]
     },
