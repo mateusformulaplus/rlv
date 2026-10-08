@@ -331,6 +331,24 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   else if (methodType === "CREDIT_CARD") paymentMethodLabel = installmentsCount > 1 ? `Cartão de Crédito (${installmentsCount}x)` : "Cartão de Crédito (1x)"
   else if (methodType === "DEBIT_CARD") paymentMethodLabel = "Cartão de Débito"
 
+  const shipping = order.shipping || {}
+  const shippingServiceName = shipping.serviceName
+    || (shipping.service ? `Serviço ${shipping.service}` : "")
+  const trackingCode = order.trackingCode || order.tracking?.tracking || order.tracking?.tracking_code || null
+  const carrierName = shipping.company?.name || shipping.company || (shippingServiceName.includes(" - ") ? shippingServiceName.split(" - ")[0].trim() : (shippingServiceName || null))
+
+  const volumes = []
+  const volumeData = {}
+  if (shippingServiceName) volumeData.servico = shippingServiceName
+  if (packageWeightKg) volumeData.pesoBruto = packageWeightKg
+  if (trackingCode) volumeData.codigoRastreamento = trackingCode
+  if (Object.keys(volumeData).length > 0) {
+    volumes.push(volumeData)
+  }
+
+  const transportadorData = carrierName ? { nome: carrierName } : null
+  const shippingDesc = shippingServiceName ? ` | Frete: ${shippingServiceName}` : ""
+
   return {
     numeroLoja: String(order.pagbankOrderId),
     data: today,
@@ -345,12 +363,14 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       unidade: "UN",
       ...(blingProduct ? { codigo: blingProduct.sku, produto: { id: Number(blingProduct.id) } } : {})
     }],
-    observacoesInternas: `Pagamento confirmado pelo PagBank (${paymentMethodLabel}). Pedido: ${order.pagbankOrderId}`,
+    observacoesInternas: `Pagamento confirmado pelo PagBank (${paymentMethodLabel}). Pedido: ${order.pagbankOrderId}${shippingDesc}`,
     transporte: {
       fretePorConta: 0,
       frete: shippingAmount,
       quantidadeVolumes: 1,
-      ...(packageWeightKg ? { pesoBruto: packageWeightKg } : {})
+      ...(packageWeightKg ? { pesoBruto: packageWeightKg } : {}),
+      ...(transportadorData ? { transportador: transportadorData } : {}),
+      ...(volumes.length > 0 ? { volumes } : {})
     },
     ...(parcelas.length > 0 ? { parcelas } : {})
   }

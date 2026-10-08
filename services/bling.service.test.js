@@ -93,7 +93,15 @@ test("exchanges authorization code and persists rotating tokens", async () => {
 })
 
 test("builds a linked kit sale with the price, shipping total and PagBank payment type", () => {
-  const payload = buildBlingSalesOrderPayload(paidOrder, 21, 34, "2026-10-02", { id: 98, sku: "RLV-MIC-02" })
+  const orderWithCarrier = {
+    ...paidOrder,
+    shipping: {
+      serviceName: "Correios - PAC",
+      company: { name: "Correios" },
+      volumes: [{ weight: 0.0422 }]
+    }
+  }
+  const payload = buildBlingSalesOrderPayload(orderWithCarrier, 21, 34, "2026-10-02", { id: 98, sku: "RLV-MIC-02" })
 
   assert.equal(payload.numeroLoja, "PAG-123")
   assert.equal(payload.contato.id, 21)
@@ -110,6 +118,10 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
   assert.equal(payload.parcelas[0].formaPagamento.id, 34)
   assert.equal(payload.transporte.frete, 12.5)
   assert.equal(payload.transporte.pesoBruto, 0.0422)
+  assert.equal(payload.transporte.transportador.nome, "Correios")
+  assert.equal(payload.transporte.volumes[0].servico, "Correios - PAC")
+  assert.equal(payload.transporte.volumes[0].pesoBruto, 0.0422)
+  assert.match(payload.observacoesInternas, /Frete: Correios - PAC/)
 })
 
 test("creates a sale once using PagBank order id and finds or creates its contact", async () => {
