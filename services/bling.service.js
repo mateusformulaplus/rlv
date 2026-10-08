@@ -332,22 +332,47 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   else if (methodType === "DEBIT_CARD") paymentMethodLabel = "Cartão de Débito"
 
   const shipping = order.shipping || {}
+  const shippingAddress = shipping.to || {}
+  const shippingVolume = shipping.volumes?.[0] || {}
   const shippingServiceName = shipping.serviceName
     || (shipping.service ? `Serviço ${shipping.service}` : "")
   const trackingCode = order.trackingCode || order.tracking?.tracking || order.tracking?.tracking_code || null
   const carrierName = shipping.company?.name || shipping.company || (shippingServiceName.includes(" - ") ? shippingServiceName.split(" - ")[0].trim() : (shippingServiceName || null))
 
-  const volumes = []
-  const volumeData = {}
-  if (shippingServiceName) volumeData.servico = shippingServiceName
-  if (packageWeightKg) volumeData.pesoBruto = packageWeightKg
-  if (trackingCode) volumeData.codigoRastreamento = trackingCode
-  if (Object.keys(volumeData).length > 0) {
-    volumes.push(volumeData)
+  const width = Number(shippingVolume.width || shippingVolume.largura || 12)
+  const height = Number(shippingVolume.height || shippingVolume.altura || 18)
+  const length = Number(shippingVolume.length || shippingVolume.comprimento || shippingVolume.depth || shippingVolume.profundidade || 2)
+  const weight = Number(shippingVolume.weight || packageWeightKg || 0.0211)
+  const declaredValue = Number(shipping.insuranceValue || product.amount || order.amount || 0)
+
+  const volumeItem = {
+    servico: shippingServiceName || undefined,
+    codigoRastreamento: trackingCode || undefined,
+    pesoBruto: weight,
+    pesoLiquido: weight,
+    valorDeclarado: declaredValue > 0 ? declaredValue : undefined,
+    dimensoes: {
+      largura: width,
+      altura: height,
+      comprimento: length
+    }
   }
+  Object.keys(volumeItem).forEach((key) => volumeItem[key] === undefined && delete volumeItem[key])
 
   const transportadorData = carrierName ? { nome: carrierName } : null
   const shippingDesc = shippingServiceName ? ` | Frete: ${shippingServiceName}` : ""
+
+  const etiqueta = {
+    nome: shippingAddress.name || order.customer?.name || undefined,
+    endereco: shippingAddress.address || shippingAddress.street || undefined,
+    numero: shippingAddress.number || undefined,
+    complemento: shippingAddress.complement || undefined,
+    municipio: shippingAddress.city || undefined,
+    uf: shippingAddress.state_abbr || shippingAddress.state || undefined,
+    cep: digits(shippingAddress.postal_code || shippingAddress.cep) || undefined,
+    bairro: shippingAddress.district || undefined
+  }
+  Object.keys(etiqueta).forEach((key) => etiqueta[key] === undefined && delete etiqueta[key])
 
   return {
     numeroLoja: String(order.pagbankOrderId),
@@ -363,14 +388,16 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       unidade: "UN",
       ...(blingProduct ? { codigo: blingProduct.sku, produto: { id: Number(blingProduct.id) } } : {})
     }],
+    observacoes: shippingServiceName ? `Forma de Envio: ${shippingServiceName}` : undefined,
     observacoesInternas: `Pagamento confirmado pelo PagBank (${paymentMethodLabel}). Pedido: ${order.pagbankOrderId}${shippingDesc}`,
     transporte: {
       fretePorConta: 0,
       frete: shippingAmount,
       quantidadeVolumes: 1,
-      ...(packageWeightKg ? { pesoBruto: packageWeightKg } : {}),
+      pesoBruto: weight,
       ...(transportadorData ? { transportador: transportadorData } : {}),
-      ...(volumes.length > 0 ? { volumes } : {})
+      ...(Object.keys(etiqueta).length > 0 ? { etiqueta } : {}),
+      volumes: [volumeItem]
     },
     ...(parcelas.length > 0 ? { parcelas } : {})
   }

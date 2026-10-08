@@ -121,6 +121,9 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
   assert.equal(payload.transporte.transportador.nome, "Correios")
   assert.equal(payload.transporte.volumes[0].servico, "Correios - PAC")
   assert.equal(payload.transporte.volumes[0].pesoBruto, 0.0422)
+  assert.equal(payload.transporte.volumes[0].valorDeclarado, 129)
+  assert.deepEqual(payload.transporte.volumes[0].dimensoes, { largura: 12, altura: 18, comprimento: 2 })
+  assert.equal(payload.observacoes, "Forma de Envio: Correios - PAC")
   assert.match(payload.observacoesInternas, /Frete: Correios - PAC/)
 })
 
