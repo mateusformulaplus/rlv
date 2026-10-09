@@ -44,11 +44,11 @@ export function buildCheckoutPayload({
                 type: "CALCULATE",
                 address_modifiable: true,
                 box: {
-                    weight: 21,
+                    weight: 210,
                     dimensions: {
-                        length: 16,
-                        width: 11,
-                        height: 2
+                        length: 2,
+                        width: 12,
+                        height: 18
                     }
                 }
             },
