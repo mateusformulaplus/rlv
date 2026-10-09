@@ -366,7 +366,7 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   const largura = Number(shippingVolume.width || shippingVolume.largura || 12)
   const altura = Number(shippingVolume.height || shippingVolume.altura || 18)
   const comprimento = Number(shippingVolume.length || shippingVolume.comprimento || shippingVolume.depth || 2)
-  const pesoBruto = Number(shippingVolume.weight || 0) || Number((0.0211 * Number(product.quantity || 1)).toFixed(4))
+  const pesoBruto = Number(shippingVolume.weight || 0) || Number((0.210 * Number(product.quantity || 1)).toFixed(4))
   const pesoLiquido = pesoBruto
   const valorDeclarado = Number(shipping.insuranceValue || amount || 0)
 

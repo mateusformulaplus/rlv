@@ -1,4 +1,4 @@
-export const PRODUCT_UNIT_WEIGHT_KG = 0.0211
+export const PRODUCT_UNIT_WEIGHT_KG = 0.210
 export const MAX_SHIPPING_QUANTITY = 100
 
 const DEFAULT_DIMENSIONS_CM = { width: 12, height: 18, length: 2 }

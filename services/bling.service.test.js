@@ -41,7 +41,7 @@ const paidOrder = {
   status: "paid",
   product: { name: "Kit 2 Soluções", amount: 129, quantity: 2 },
   customer: { name: "Cliente Teste", email: "cliente@example.com", taxId: "123.456.789-09", phone: "(11) 98765-4321" },
-  shipping: { volumes: [{ weight: 0.0422 }] },
+  shipping: { volumes: [{ weight: 0.42 }] },
   shippingAmount: 12.5,
   pagbank: { charges: [{ status: "PAID", payment_method: { type: "PIX" } }] }
 }
@@ -98,7 +98,7 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
     shipping: {
       serviceName: "Correios - PAC",
       company: { name: "Correios" },
-      volumes: [{ weight: 0.0422 }]
+      volumes: [{ weight: 0.42 }]
     }
   }
   const payload = buildBlingSalesOrderPayload(orderWithCarrier, 21, 34, "2026-10-02", { id: 98, sku: "RLV-MIC-02" })
@@ -112,20 +112,20 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
     valorLista: 129,
     unidade: "UN",
     tipo: "P",
-    pesoBruto: 0.0422,
-    pesoLiquido: 0.0422,
+    pesoBruto: 0.42,
+    pesoLiquido: 0.42,
     codigo: "RLV-MIC-02",
     produto: { id: 98 }
   })
   assert.equal(payload.parcelas[0].valor, 141.5)
   assert.equal(payload.parcelas[0].formaPagamento.id, 34)
   assert.equal(payload.transporte.frete, 12.5)
-  assert.equal(payload.transporte.pesoBruto, 0.0422)
-  assert.equal(payload.transporte.pesoLiquido, 0.0422)
+  assert.equal(payload.transporte.pesoBruto, 0.42)
+  assert.equal(payload.transporte.pesoLiquido, 0.42)
   assert.equal(payload.transporte.transportador.nome, "Correios")
   assert.equal(payload.transporte.volumes[0].servico, "Correios - PAC")
-  assert.equal(payload.transporte.volumes[0].pesoBruto, 0.0422)
-  assert.equal(payload.transporte.volumes[0].pesoLiquido, 0.0422)
+  assert.equal(payload.transporte.volumes[0].pesoBruto, 0.42)
+  assert.equal(payload.transporte.volumes[0].pesoLiquido, 0.42)
   assert.equal(payload.transporte.volumes[0].valorDeclarado, 129)
   assert.equal(payload.transporte.volumes[0].largura, 12)
   assert.equal(payload.transporte.volumes[0].altura, 18)

@@ -61,7 +61,7 @@ test("maps PagBank orders into the expedition dashboard record", () => {
   assert.equal(pedido.frete, "Correios - PAC")
   assert.equal(pedido.valorFrete, 15.5)
   assert.equal(pedido.statusExpedicao, "Etiqueta disponível")
-  assert.equal(pedido.peso, "0.0422 kg")
+  assert.equal(pedido.peso, "0.42 kg")
   assert.equal(pedido.codigoRastreio, "BR123456789")
   assert.equal(pedido.etiquetaDisponivel, true)
   assert.equal(pedido.dimensoes, "12x18x2.5 cm")
@@ -79,11 +79,11 @@ test("restores the physical quantity for older kit orders", () => {
     referenceId: "kit-4",
     status: "paid",
     product: { name: "Pague 4 Leve 6", quantity: 1 },
-    shipping: { volumes: [{ width: 12, height: 2, length: 17, weight: 0.0211 }] }
+    shipping: { volumes: [{ width: 12, height: 2, length: 17, weight: 0.21 }] }
   })
 
   assert.equal(pedido.produtoQuantidade, 6)
-  assert.equal(pedido.peso, "0.1266 kg")
+  assert.equal(pedido.peso, "1.26 kg")
   assert.equal(pedido.dimensoes, "12x18x4 cm")
 })
 
@@ -156,7 +156,7 @@ test("maps PagBank charge and Melhor Envio volume details", async () => {
   assert.equal(details.chargeId, "CHAR-123")
   assert.equal(details.paidAt, "2026-09-30T17:05:00.000Z")
   assert.equal(details.paidAmount, 125)
-  assert.deepEqual(details.shipping.volumes[0], { width: 12, height: 18, length: 2, weight: 0.0211 })
+  assert.deepEqual(details.shipping.volumes[0], { width: 12, height: 18, length: 2, weight: 0.21 })
   assert.equal(details.melhorEnvio.trackingCode, "BR123456789")
 })
 

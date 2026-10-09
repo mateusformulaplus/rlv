@@ -22,7 +22,7 @@ test("validates 8-digit postal codes and rejects invalid or repetitive sequences
 })
 
 test("calculates package weight from the unit weight and kit quantity", () => {
-  for (const [quantity, expectedWeight] of [[1, 0.0211], [2, 0.0422], [3, 0.0633], [6, 0.1266]]) {
+  for (const [quantity, expectedWeight] of [[1, 0.21], [2, 0.42], [3, 0.63], [6, 1.26]]) {
     assert.equal(getPackageWeight(quantity), expectedWeight)
   }
 })
@@ -41,7 +41,7 @@ test("uses the measured package dimensions for each kit quantity", () => {
 test("restores known kit quantities and fixes old list values", () => {
   assert.equal(resolveShippingQuantity(1, "kit-3"), 3)
   assert.equal(resolveShippingQuantity(1, "kit-4"), 6)
-  assert.equal(correctLegacyPackageWeight("0.0211 kg", 6), "0.1266 kg")
+  assert.equal(correctLegacyPackageWeight("0.21 kg", 6), "1.26 kg")
   assert.equal(correctLegacyPackageDimensions("12x2x17 cm", 6), "12x18x4 cm")
   assert.equal(correctLegacyPackageDimensions("12x3x17 cm", 1), "12x18x2 cm")
   assert.equal(correctLegacyPackageDimensions("12x18x17 cm", 1), "12x18x2 cm")
@@ -65,13 +65,13 @@ test("normalizes quotes to package dimensions and total package weight", () => {
   assert.deepEqual(quote.products[0], {
     name: "Kit RLV",
     quantity: 1,
-    weight: 0.0633,
+    weight: 0.63,
     width: 12,
     height: 18,
     length: 3
   })
-  assert.equal(orderShipping.products[0].weight, 0.0211)
-  assert.equal(orderShipping.volumes[0].weight, 0.0633)
-  assert.equal(correctLegacyPackageWeight("0.5 kg", 3), "0.0633 kg")
-  assert.equal(correctLegacyPackageWeight("0.0211 kg", 1), "0.0211 kg")
+  assert.equal(orderShipping.products[0].weight, 0.21)
+  assert.equal(orderShipping.volumes[0].weight, 0.63)
+  assert.equal(correctLegacyPackageWeight("0.5 kg", 3), "0.63 kg")
+  assert.equal(correctLegacyPackageWeight("0.21 kg", 1), "0.21 kg")
 })
