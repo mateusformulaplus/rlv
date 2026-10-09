@@ -40,7 +40,7 @@ const paidOrder = {
   referenceId: "kit-2",
   status: "paid",
   product: { name: "Kit 2 Soluções", amount: 129, quantity: 2 },
-  customer: { name: "Cliente Teste", email: "cliente@example.com", taxId: "123.456.789-09" },
+  customer: { name: "Cliente Teste", email: "cliente@example.com", taxId: "123.456.789-09", phone: "(11) 98765-4321" },
   shipping: { volumes: [{ weight: 0.0422 }] },
   shippingAmount: 12.5,
   pagbank: { charges: [{ status: "PAID", payment_method: { type: "PIX" } }] }
@@ -164,6 +164,8 @@ test("creates a sale once using PagBank order id and finds or creates its contac
   const contactRequest = requests.find((request) => request.path === "/Api/v3/contatos" && request.method === "POST")
   const saleRequest = requests.find((request) => request.path === "/Api/v3/pedidos/vendas" && request.method === "POST")
   assert.equal(contactRequest.body.numeroDocumento, "12345678909")
+  assert.equal(contactRequest.body.celular, "11987654321")
+  assert.equal(contactRequest.body.telefone, "11987654321")
   assert.equal(saleRequest.body.contato.id, 21)
   assert.equal(saleRequest.body.itens[0].produto.id, 98)
   assert.equal(saleRequest.body.itens[0].codigo, "RLV-MIC-02")

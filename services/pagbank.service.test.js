@@ -19,6 +19,29 @@ test("builds PagBank transparent Pix payment with expiration date", () => {
     assert.equal("capture" in paymentMethod, false)
 })
 
+test("formats customer mobile phone properly in PagBank payload", () => {
+    const payload = buildTransparentOrderPayload({
+        paymentMethod: "PIX",
+        amount: 25,
+        customer: {
+            name: "Maria Oliveira",
+            email: "maria@example.com",
+            phone: "(21) 98765-4321",
+            taxId: "123.456.789-09"
+        }
+    })
+
+    assert.deepEqual(payload.customer.phones, [
+        {
+            country: "55",
+            area: "21",
+            number: "987654321",
+            type: "MOBILE"
+        }
+    ])
+    assert.equal(payload.customer.tax_id, "12345678909")
+})
+
 test("keeps card payment fields for credit card", () => {
     const payload = buildTransparentOrderPayload({
         paymentMethod: "CREDIT_CARD",

@@ -14,10 +14,14 @@ export async function handlePagBankWebhook(payload, dependencies = {}) {
 	const pagbankOrder = await fetchPagBankOrder(pagbankOrderId)
 
 	if (!localOrder) {
+		const phoneCandidate = pagbankOrder.customer?.phones?.[0]
+			? `${pagbankOrder.customer.phones[0].area}${pagbankOrder.customer.phones[0].number}`
+			: null
 		const customer = pagbankOrder.customer ? {
 			name: pagbankOrder.customer.name,
 			email: pagbankOrder.customer.email,
-			taxId: pagbankOrder.customer.tax_id
+			taxId: pagbankOrder.customer.tax_id,
+			phone: phoneCandidate
 		} : {}
 		const item = pagbankOrder.items?.[0] || {}
 		localOrder = {

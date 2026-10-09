@@ -55,7 +55,7 @@ export function toExpedicaoPedidoData(order) {
 		pagbankOrderId: order.pagbankOrderId,
 		statusPagamento: paidStatuses.has(paymentStatus) ? "Pago" : "Pendente",
 		clienteNome: String(order.customer?.name || address.name || "Cliente sem nome"),
-		clienteTelefone: order.customer?.phone || address.phone || null,
+		clienteTelefone: order.customer?.phone || order.customer?.celular || order.customer?.mobile || address.phone || null,
 		clienteEmail: order.customer?.email || null,
 		produtoNome: String(product.name || order.productName || "Produto sem nome"),
 		produtoQuantidade: quantity,
@@ -109,7 +109,7 @@ export function toExpedicaoOrderDetails(order) {
 		customer: {
 			name: order.customer?.name || null,
 			email: order.customer?.email || null,
-			phone: order.customer?.phone || order.customer?.mobile || null
+			phone: order.customer?.phone || order.customer?.celular || order.customer?.mobile || shipping.to?.phone || null
 		},
 		shipping: {
 			serviceName: shipping.serviceName || (shipping.service ? `Serviço ${shipping.service}` : null),

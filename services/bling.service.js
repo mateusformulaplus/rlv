@@ -180,10 +180,30 @@ async function findOrCreateContact(order, token, fetchImpl) {
   const taxId = digits(customer.taxId || customer.tax_id)
   if (!taxId) throw new Error("Pedido sem CPF/CNPJ para criar contato no Bling.")
 
+  const rawPhone = customer.phone || customer.celular || customer.mobile || order.shipping?.to?.phone || ""
+  const cleanPhone = digits(rawPhone)
+
   const query = new URLSearchParams({ numeroDocumento: taxId, criterio: "1" })
   const result = await blingRequest(`/contatos?${query}`, { token, fetchImpl })
   const existing = (result.data || []).find((contact) => digits(contact.numeroDocumento) === taxId)
-  if (existing?.id) return existing.id
+  if (existing?.id) {
+    if (cleanPhone || customer.email) {
+      try {
+        await blingRequest(`/contatos/${existing.id}`, {
+          token,
+          method: "PUT",
+          body: {
+            ...(customer.email ? { email: customer.email } : {}),
+            ...(cleanPhone ? { celular: cleanPhone, telefone: cleanPhone } : {})
+          },
+          fetchImpl
+        })
+      } catch (error) {
+        console.warn(`[Bling] Não foi possível atualizar dados do contato ${existing.id}: ${error.message}`)
+      }
+    }
+    return existing.id
+  }
 
   const shippingAddress = order.shipping?.to || {}
   const personType = taxId.length === 14 ? "J" : "F"
@@ -192,8 +212,8 @@ async function findOrCreateContact(order, token, fetchImpl) {
     tipo: personType,
     situacao: "A",
     numeroDocumento: taxId,
-    email: customer.email,
-    celular: customer.phone || customer.mobile,
+    ...(customer.email ? { email: customer.email } : {}),
+    ...(cleanPhone ? { celular: cleanPhone, telefone: cleanPhone } : {}),
     endereco: {
       geral: {
         endereco: shippingAddress.address || shippingAddress.street || "",

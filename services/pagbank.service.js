@@ -158,8 +158,8 @@ export function buildTransparentOrderPayload({
 } = {}) {
     const safeQuantity = resolveShippingQuantity(quantity, referenceId)
     const totalAmount = Math.round((Number(amount || 0) + Number(shippingAmount || 0)) * 100)
-    const rawTaxId = String(customer.taxId || "").replace(/\D/g, "")
-    const phoneDigits = String(customer.phone || customer.mobile || "11999999999").replace(/\D/g, "")
+    const rawTaxId = String(customer.taxId || customer.tax_id || "").replace(/\D/g, "")
+    const phoneDigits = String(customer.phone || customer.celular || customer.mobile || shipping?.to?.phone || "11999999999").replace(/\D/g, "")
     const areaCode = phoneDigits.length >= 10 ? phoneDigits.slice(0, 2) : "11"
     const phoneNumber = phoneDigits.length >= 10 ? phoneDigits.slice(2, 11) : "999999999"
 
