@@ -131,6 +131,8 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
   assert.equal(payload.transporte.volumes[0].altura, 18)
   assert.equal(payload.transporte.volumes[0].comprimento, 2)
   assert.deepEqual(payload.transporte.volumes[0].dimensoes, { largura: 12, altura: 18, comprimento: 2 })
+  assert.equal(payload.transporte.etiqueta.telefone, "11987654321")
+  assert.equal(payload.transporte.etiqueta.celular, "11987654321")
   assert.equal(payload.observacoes, "Forma de Envio: Correios - PAC")
   assert.match(payload.observacoesInternas, /Frete: Correios - PAC/)
 })

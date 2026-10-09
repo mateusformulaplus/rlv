@@ -390,7 +390,7 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
 
   const shippingDesc = shippingServiceName ? ` | Frete: ${shippingServiceName}` : ""
 
-  // Etiqueta de entrega — necessária para emissão de NF e cotação de volume no Bling
+  // Etiqueta de entrega — necessária para emissão de NF, cotação de volume e Bling Envios
   const etiqueta = {}
   if (shippingAddress.name || order.customer?.name) etiqueta.nome = shippingAddress.name || order.customer?.name
   if (shippingAddress.address || shippingAddress.street) etiqueta.endereco = shippingAddress.address || shippingAddress.street
@@ -401,6 +401,12 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
   if (shippingAddress.state_abbr || shippingAddress.state) etiqueta.uf = shippingAddress.state_abbr || shippingAddress.state
   const destCEP = digits(shippingAddress.postal_code || shippingAddress.cep || "")
   if (destCEP) etiqueta.cep = destCEP
+  const rawPhone = order.customer?.phone || order.customer?.celular || order.customer?.mobile || shippingAddress.phone || ""
+  const cleanPhone = digits(rawPhone)
+  if (cleanPhone) {
+    etiqueta.telefone = cleanPhone
+    etiqueta.celular = cleanPhone
+  }
 
   return {
     numeroLoja: String(order.pagbankOrderId),
