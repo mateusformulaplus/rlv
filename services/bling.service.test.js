@@ -111,6 +111,9 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
     valor: 129,
     valorLista: 129,
     unidade: "UN",
+    tipo: "P",
+    pesoBruto: 0.0422,
+    pesoLiquido: 0.0422,
     codigo: "RLV-MIC-02",
     produto: { id: 98 }
   })
@@ -118,13 +121,16 @@ test("builds a linked kit sale with the price, shipping total and PagBank paymen
   assert.equal(payload.parcelas[0].formaPagamento.id, 34)
   assert.equal(payload.transporte.frete, 12.5)
   assert.equal(payload.transporte.pesoBruto, 0.0422)
+  assert.equal(payload.transporte.pesoLiquido, 0.0422)
   assert.equal(payload.transporte.transportador.nome, "Correios")
   assert.equal(payload.transporte.volumes[0].servico, "Correios - PAC")
   assert.equal(payload.transporte.volumes[0].pesoBruto, 0.0422)
+  assert.equal(payload.transporte.volumes[0].pesoLiquido, 0.0422)
   assert.equal(payload.transporte.volumes[0].valorDeclarado, 129)
   assert.equal(payload.transporte.volumes[0].largura, 12)
   assert.equal(payload.transporte.volumes[0].altura, 18)
   assert.equal(payload.transporte.volumes[0].comprimento, 2)
+  assert.deepEqual(payload.transporte.volumes[0].dimensoes, { largura: 12, altura: 18, comprimento: 2 })
   assert.equal(payload.observacoes, "Forma de Envio: Correios - PAC")
   assert.match(payload.observacoesInternas, /Frete: Correios - PAC/)
 })

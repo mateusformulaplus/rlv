@@ -222,7 +222,8 @@ async function findOrCreateContact(order, token, fetchImpl) {
         bairro: shippingAddress.district || "",
         municipio: shippingAddress.city || "",
         uf: shippingAddress.state_abbr || shippingAddress.state || "",
-        cep: digits(shippingAddress.postal_code || shippingAddress.cep)
+        cep: digits(shippingAddress.postal_code || shippingAddress.cep),
+        pais: "Brasil"
       }
     }
   }
@@ -361,21 +362,27 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
     || (typeof shipping.company === "string" ? shipping.company : null)
     || (shippingServiceName.includes(" - ") ? shippingServiceName.split(" - ")[0].trim() : (shippingServiceName || null))
 
-  // Dimensões do pacote (cm) — enviadas DIRETO no objeto volume (API v3 Bling não aceita objeto aninhado 'dimensoes')
+  // Dimensões do pacote (cm) — enviadas com suporte completo para API v3 do Bling (tanto no objeto dimensoes quanto nas propriedades raiz do volume)
   const largura = Number(shippingVolume.width || shippingVolume.largura || 12)
   const altura = Number(shippingVolume.height || shippingVolume.altura || 18)
   const comprimento = Number(shippingVolume.length || shippingVolume.comprimento || shippingVolume.depth || 2)
   const pesoBruto = Number(shippingVolume.weight || 0) || Number((0.0211 * Number(product.quantity || 1)).toFixed(4))
+  const pesoLiquido = pesoBruto
   const valorDeclarado = Number(shipping.insuranceValue || amount || 0)
 
-  // Volume com todos os campos obrigatórios para cotação e etiqueta no Bling
+  // Volume com todos os campos necessários para expedição, transporte e Nota Fiscal no Bling API v3
   const volumeItem = {
     quantidade: 1,
     pesoBruto,
-    pesoLiquido: pesoBruto,
+    pesoLiquido,
     largura,
     altura,
     comprimento,
+    dimensoes: {
+      largura,
+      altura,
+      comprimento
+    },
     ...(valorDeclarado > 0 ? { valorDeclarado } : {}),
     ...(shippingServiceName ? { servico: shippingServiceName } : {}),
     ...(trackingCode ? { codigoRastreamento: trackingCode } : {})
@@ -407,6 +414,9 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       valor: amount,
       valorLista: amount,
       unidade: "UN",
+      tipo: "P",
+      pesoBruto,
+      pesoLiquido,
       ...(blingProduct ? { codigo: blingProduct.sku, produto: { id: Number(blingProduct.id) } } : {})
     }],
     ...(shippingServiceName ? { observacoes: `Forma de Envio: ${shippingServiceName}` } : {}),
@@ -416,6 +426,7 @@ export function buildBlingSalesOrderPayload(order, contactId, paymentFormId, tod
       frete: shippingAmount,
       quantidadeVolumes: 1,
       pesoBruto,
+      pesoLiquido,
       ...(carrierName ? { transportador: { nome: carrierName } } : {}),
       ...(Object.keys(etiqueta).length > 0 ? { etiqueta } : {}),
       volumes: [volumeItem]
