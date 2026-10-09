@@ -5,11 +5,21 @@ import {
   correctLegacyPackageWeight,
   getPackageDimensions,
   getPackageWeight,
+  isValidPostalCode,
   normalizeCalculationShipment,
   normalizeOrderShipping,
   resolveShippingQuantity,
   validateShippingQuantity
 } from "./shipping.service.js"
+
+test("validates 8-digit postal codes and rejects invalid or repetitive sequences", () => {
+  assert.equal(isValidPostalCode("01001-000"), true)
+  assert.equal(isValidPostalCode("01001000"), true)
+  assert.equal(isValidPostalCode("00000000"), false)
+  assert.equal(isValidPostalCode("11111111"), false)
+  assert.equal(isValidPostalCode("123"), false)
+  assert.equal(isValidPostalCode(""), false)
+})
 
 test("calculates package weight from the unit weight and kit quantity", () => {
   for (const [quantity, expectedWeight] of [[1, 0.0211], [2, 0.0422], [3, 0.0633], [6, 0.1266]]) {

@@ -5,6 +5,13 @@ const DEFAULT_DIMENSIONS_CM = { width: 12, height: 18, length: 2 }
 const KIT_QUANTITIES = { "kit-1": 1, "kit-2": 2, "kit-3": 3, "kit-4": 6 }
 const PACKAGE_DEPTH_BY_QUANTITY = { 1: 2, 2: 2.5, 3: 3, 6: 4 }
 
+export function isValidPostalCode(value) {
+  const digits = String(value || "").replace(/\D/g, "")
+  if (digits.length !== 8) return false
+  if (/^(\d)\1{7}$/.test(digits)) return false
+  return true
+}
+
 export function validateShippingQuantity(value = 1) {
   const quantity = Number(value)
   if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_SHIPPING_QUANTITY) {

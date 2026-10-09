@@ -1,6 +1,6 @@
 import { apiPagBank, getPagBankPublicKey, getPagBankToken } from "../lib/axiso.js"
 import { saveOrder } from "./order.service.js"
-import { normalizeOrderShipping, resolveShippingQuantity } from "./shipping.service.js"
+import { isValidPostalCode, normalizeOrderShipping, resolveShippingQuantity } from "./shipping.service.js"
 
 
 export function buildCheckoutPayload({
@@ -289,8 +289,9 @@ export async function createTransparentOrder(requestData = {}) {
     if (!customer.name || !customer.email || !isValidTaxId(customer.taxId)) {
         throw new Error("Nome, e-mail e CPF/CNPJ válido são obrigatórios")
     }
-    if (!shipping.service || !shipping.to?.postal_code) {
-        throw new Error("Opção de envio e endereço de entrega são obrigatórios")
+    const postalCode = String(shipping.to?.postal_code || "").replace(/\D/g, "")
+    if (!shipping.service || !postalCode || !isValidPostalCode(postalCode)) {
+        throw new Error("Opção de envio e um CEP de entrega válido com 8 números são obrigatórios")
     }
 
     try {
